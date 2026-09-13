@@ -11,6 +11,12 @@ export type Action =
   | "packages:create"
   | "packages:edit"
   | "packages:delete"
+  | "pages:view"
+  | "pages:edit"
+  | "blog:view"
+  | "blog:create"
+  | "blog:edit"
+  | "blog:delete"
   | "users:manage"
   | "settings:manage";
 
@@ -22,11 +28,24 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Action>> = {
     "packages:create",
     "packages:edit",
     "packages:delete",
+    "pages:view",
+    "pages:edit",
+    "blog:view",
+    "blog:create",
+    "blog:edit",
+    "blog:delete",
     "users:manage",
     "settings:manage",
   ]),
-  admin_viewer: new Set<Action>(["quotes:view", "packages:view"]),
-  editor: new Set<Action>(["quotes:view", "quotes:edit", "packages:view", "packages:edit"]),
+  admin_viewer: new Set<Action>(["quotes:view", "packages:view", "pages:view", "blog:view"]),
+  editor: new Set<Action>([
+    "quotes:view",
+    "quotes:edit",
+    "packages:view",
+    "packages:edit",
+    "pages:view",
+    "blog:view",
+  ]),
 };
 
 export function can(user: { role: Role } | null | undefined, action: Action): boolean {

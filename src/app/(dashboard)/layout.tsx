@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import { LogoutButton } from "@/components/LogoutButton";
 
 // Gate autoritativo de todo el dashboard — Server Component, corre en
@@ -34,7 +35,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Link href="/paquetes" className="rounded-lg px-3 py-2 hover:bg-brand-light">
             Paquetes
           </Link>
-          {user.role === "super_admin" && (
+          {can(user, "pages:view") && (
+            <Link href="/paginas" className="rounded-lg px-3 py-2 hover:bg-brand-light">
+              Páginas
+            </Link>
+          )}
+          {can(user, "blog:view") && (
+            <Link href="/blog" className="rounded-lg px-3 py-2 hover:bg-brand-light">
+              Blog
+            </Link>
+          )}
+          {can(user, "users:manage") && (
             <Link href="/usuarios" className="rounded-lg px-3 py-2 hover:bg-brand-light">
               Usuarios
             </Link>

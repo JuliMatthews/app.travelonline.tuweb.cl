@@ -109,3 +109,78 @@ export type PackageInput = {
   itinerary: { dayNumber: number | null; title: string; description: string }[];
   imageIds: string[]; // orden = el orden final de la galería
 };
+
+export type QuoteStatus = "nueva" | "en_proceso" | "ganada" | "perdida";
+
+export type QuoteSummary = {
+  id: number;
+  createdAt: string;
+  packageSlug: string;
+  packageTitle: string;
+  passengerName: string;
+  passengerEmail: string;
+  totalClp: number | null;
+  status: QuoteStatus;
+  assignedToName: string | null;
+};
+
+export type QuoteDetail = QuoteSummary & {
+  adults: number;
+  children: number;
+  roomOptionLabel: string | null;
+  selectedAddons: { id: string; name: string; priceClp: number }[];
+  perPersonBaseClp: number | null;
+  passengersSubtotalClp: number | null;
+  addonsTotalClp: number;
+  roomAdjustmentClp: number;
+  depositSuggestedClp: number | null;
+  preferredDateFrom: string | null;
+  preferredDateTo: string | null;
+  passengerPhone: string;
+  comments: string | null;
+  internalNotes: string | null;
+  assignedTo: string | null;
+};
+
+export type StaticPage = {
+  id: string;
+  slug: string;
+  title: string;
+  content: string;
+  updatedAt: string;
+};
+
+export type BlogStatus = "draft" | "published";
+
+export type BlogPostSummary = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  status: BlogStatus;
+  publishedAt: string | null;
+  featuredImage: PackageImage | null;
+};
+
+export type BlogPostDetail = BlogPostSummary & {
+  content: string;
+};
+
+export type BlogPostInput = {
+  slug: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  status: BlogStatus;
+  publishedAt: string | null;
+  featuredImageId: string | null;
+};
+
+export type UserRow = {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  isActive: boolean;
+  lastLoginAt: string | null;
+};
