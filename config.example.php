@@ -17,3 +17,8 @@ define('SESSION_DAYS', 7);
 
 // Nombre de la cookie de sesión.
 define('SESSION_COOKIE_NAME', 'to_admin_session');
+
+// URL pública de este panel — usada para construir URLs absolutas de imagen
+// cuando hace falta guardarlas como texto fijo (p.ej. <img> incrustados en
+// el contenido de una página estática). En producción: https://app.travelonline.tuweb.cl
+define('ADMIN_PUBLIC_URL', 'http://localhost:8801');
