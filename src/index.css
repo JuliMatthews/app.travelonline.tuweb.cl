@@ -1,0 +1,126 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+/* Modo oscuro por clase (.dark en <html>), no solo por preferencia del
+   sistema — así el toggle manual manda. Ver src/lib/theme.ts. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f4f0f1;
+  --surface: #ffffff;
+  --surface-muted: #f8f5f6;
+  --foreground: #221521;
+  --border: rgb(0 0 0 / 0.08);
+
+  --brand: #55305c;
+  --brand-dark: #3b2142;
+  --brand-light: #e6dbe6;
+  --accent: #e8a33d;
+}
+
+.dark {
+  --background: #14101a;
+  --surface: #1d1826;
+  --surface-muted: #241e30;
+  --foreground: #eee7f0;
+  --border: rgb(255 255 255 / 0.08);
+
+  --brand: #a377ab;
+  --brand-dark: #c99fd1;
+  --brand-light: #33263a;
+  --accent: #e8a33d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-light: var(--brand-light);
+  --color-accent: var(--accent);
+  --font-sans: "Inter", system-ui, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  margin: 0;
+  font-family: var(--font-sans);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+@layer components {
+  .input {
+    width: 100%;
+    border-radius: 0.6rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--foreground);
+    padding: 0.55rem 0.8rem;
+    font-size: 0.875rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent);
+  }
+  .input:disabled {
+    opacity: 0.6;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 9999px;
+    background: var(--brand);
+    color: white;
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 0.55rem 1.1rem;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+  }
+  .btn-primary:hover {
+    background: var(--brand-dark);
+  }
+  .btn-primary:disabled {
+    opacity: 0.6;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 0.6rem;
+    border: 1px solid var(--border);
+    color: var(--foreground);
+    font-size: 0.875rem;
+    padding: 0.5rem 0.9rem;
+    transition: background-color 0.15s ease;
+  }
+  .btn-secondary:hover {
+    background: var(--surface-muted);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: var(--brand-light);
+    color: var(--brand-dark);
+  }
+}

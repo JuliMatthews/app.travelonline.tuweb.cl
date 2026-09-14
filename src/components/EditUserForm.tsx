@@ -1,12 +1,8 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { apiPost } from "@/lib/api";
 import type { Role, UserRow } from "@/lib/types";
-import { updateUserAction } from "@/app/(dashboard)/usuarios/actions";
 
 export function EditUserForm({ user, isSelf }: { user: UserRow; isSelf: boolean }) {
-  const router = useRouter();
   const [name, setName] = useState(user.name);
   const [role, setRole] = useState<Role>(user.role);
   const [isActive, setIsActive] = useState(user.isActive);
@@ -19,15 +15,20 @@ export function EditUserForm({ user, isSelf }: { user: UserRow; isSelf: boolean 
     e.preventDefault();
     setSaving(true);
     setError(null);
-    const result = await updateUserAction(user.id, { name, role, isActive, newPassword });
+    setSaved(false);
+    const result = await apiPost(`/api-users.php?action=update&id=${user.id}`, {
+      name,
+      role,
+      isActive,
+      newPassword,
+    });
     setSaving(false);
     if (!result.ok) {
-      setError(result.message);
+      setError(result.error);
       return;
     }
     setSaved(true);
     setNewPassword("");
-    router.refresh();
   }
 
   return (

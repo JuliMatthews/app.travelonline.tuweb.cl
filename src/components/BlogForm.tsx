@@ -1,10 +1,9 @@
-"use client";
-
 import { useState } from "react";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
+import { apiPost, apiUpload } from "@/lib/api";
 import type { BlogPostDetail, BlogPostInput } from "@/lib/types";
-import { saveBlogPostAction, deleteBlogPostAction } from "@/app/(dashboard)/blog/actions";
+
+type FeaturedImage = { id: string; extension: string };
 
 function emptyInput(): BlogPostInput {
   return {
@@ -39,9 +38,11 @@ export function BlogForm({
   canEdit: boolean;
   canDelete: boolean;
 }) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [form, setForm] = useState<BlogPostInput>(existing ? fromDetail(existing) : emptyInput());
-  const [image, setImage] = useState(existing?.featuredImage ?? null);
+  const [image, setImage] = useState<FeaturedImage | null>(
+    existing?.featuredImage ? { id: existing.featuredImage.id, extension: existing.featuredImage.extension } : null
+  );
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,22 +57,14 @@ export function BlogForm({
     if (!file) return;
     setUploading(true);
     setError(null);
-    try {
-      const body = new FormData();
-      body.set("file", file);
-      const res = await fetch("/api/uploads", { method: "POST", body });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.message ?? "No se pudo subir la imagen");
-      }
-      const data = (await res.json()) as { id: string; extension: string };
-      setImage({ id: data.id, extension: data.extension, altText: null, sortOrder: 0 });
-      update("featuredImageId", data.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error inesperado subiendo la imagen");
-    } finally {
-      setUploading(false);
+    const result = await apiUpload<{ id: string; extension: string }>("/api-uploads.php", file);
+    setUploading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
     }
+    setImage({ id: result.id, extension: result.extension });
+    update("featuredImageId", result.id);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -80,23 +73,25 @@ export function BlogForm({
     setError(null);
     const payload = {
       ...form,
-      publishedAt:
-        form.status === "published" ? form.publishedAt ?? new Date().toISOString() : form.publishedAt,
+      publishedAt: form.status === "published" ? form.publishedAt ?? new Date().toISOString() : form.publishedAt,
     };
-    const result = await saveBlogPostAction(existing?.id ?? null, payload);
+    const action = existing
+      ? `/api-blog.php?action=update&id=${existing.id}`
+      : "/api-blog.php?action=create";
+    const result = await apiPost<{ id: string }>(action, payload);
     setSaving(false);
     if (!result.ok) {
-      setError(result.message);
+      setError(result.error);
       return;
     }
-    router.push("/blog");
-    router.refresh();
+    navigate("/blog");
   }
 
   async function handleDelete() {
     if (!existing) return;
     if (!confirm(`¿Eliminar "${existing.title}"? No se puede deshacer.`)) return;
-    await deleteBlogPostAction(existing.id);
+    await apiPost(`/api-blog.php?action=delete&id=${existing.id}`, {});
+    navigate("/blog");
   }
 
   return (
@@ -145,12 +140,16 @@ export function BlogForm({
       <div>
         <span className="block text-sm font-medium text-brand-dark">Imagen destacada</span>
         {image && (
-          <div className="relative mt-2 aspect-video w-64 overflow-hidden rounded-lg ring-1 ring-black/10">
-            <Image src={`/uploads/${image.id}.${image.extension}`} alt="" fill sizes="256px" className="object-cover" />
+          <div className="relative mt-2 aspect-video w-64 overflow-hidden rounded-lg ring-1 ring-border">
+            <img
+              src={`/uploads/${image.id}.${image.extension}`}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           </div>
         )}
         {canEdit && (
-          <label className="mt-2 inline-block cursor-pointer rounded-lg border border-dashed border-black/20 px-4 py-2 text-sm text-foreground/60 hover:bg-brand-light/30">
+          <label className="mt-2 inline-block cursor-pointer rounded-lg border border-dashed border-border px-4 py-2 text-sm text-foreground/60 hover:bg-brand-light/30">
             {uploading ? "Subiendo..." : image ? "Cambiar imagen" : "Agregar imagen"}
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleUpload} className="hidden" disabled={uploading} />
           </label>
@@ -172,7 +171,7 @@ export function BlogForm({
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="flex items-center justify-between border-t border-black/10 pt-6">
+      <div className="flex items-center justify-between border-t border-border pt-6">
         {canEdit && (
           <button
             type="submit"

@@ -1,9 +1,8 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import type { QuoteDetail, UserRow } from "@/lib/types";
-import { updateQuoteAction } from "@/app/(dashboard)/cotizaciones/actions";
+import { apiPost } from "@/lib/api";
+import type { QuoteDetail, QuoteStatus } from "@/lib/types";
+
+type QuoteUser = { id: string; name: string };
 
 export function QuoteDetailForm({
   quote,
@@ -11,11 +10,10 @@ export function QuoteDetailForm({
   canEdit,
 }: {
   quote: QuoteDetail;
-  users: UserRow[];
+  users: QuoteUser[];
   canEdit: boolean;
 }) {
-  const router = useRouter();
-  const [status, setStatus] = useState(quote.status);
+  const [status, setStatus] = useState<QuoteStatus>(quote.status);
   const [internalNotes, setInternalNotes] = useState(quote.internalNotes ?? "");
   const [assignedTo, setAssignedTo] = useState(quote.assignedTo ?? "");
   const [saving, setSaving] = useState(false);
@@ -25,18 +23,18 @@ export function QuoteDetailForm({
   async function handleSave() {
     setSaving(true);
     setError(null);
-    const result = await updateQuoteAction(quote.id, {
+    setSaved(false);
+    const result = await apiPost(`/api-quotes.php?action=update&id=${quote.id}`, {
       status,
       internalNotes,
       assignedTo: assignedTo || null,
     });
     setSaving(false);
     if (!result.ok) {
-      setError(result.message);
+      setError(result.error);
       return;
     }
     setSaved(true);
-    router.refresh();
   }
 
   return (
@@ -79,7 +77,7 @@ export function QuoteDetailForm({
           </div>
         )}
 
-        <div className="border-t border-black/10 pt-4">
+        <div className="border-t border-border pt-4">
           <h2 className="font-semibold text-brand-dark">Datos de contacto</h2>
           <dl className="mt-2 grid grid-cols-2 gap-3 text-sm">
             <Row label="Nombre" value={quote.passengerName} />
@@ -95,13 +93,13 @@ export function QuoteDetailForm({
         </div>
       </section>
 
-      <section className="h-fit rounded-2xl border border-black/5 bg-brand-light/40 p-6">
+      <section className="h-fit rounded-2xl border border-border bg-brand-light/40 p-6">
         <h2 className="font-semibold text-brand-dark">Gestión interna</h2>
         <label className="mt-4 block text-sm font-medium text-brand-dark">Estado</label>
         <select
           disabled={!canEdit}
           value={status}
-          onChange={(e) => setStatus(e.target.value as typeof status)}
+          onChange={(e) => setStatus(e.target.value as QuoteStatus)}
           className="input mt-1"
         >
           <option value="nueva">Nueva</option>

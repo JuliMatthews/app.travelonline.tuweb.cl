@@ -1,12 +1,10 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
+import { apiPost } from "@/lib/api";
 import type { Role } from "@/lib/types";
-import { createUserAction } from "@/app/(dashboard)/usuarios/actions";
 
 export function NewUserForm() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -18,14 +16,13 @@ export function NewUserForm() {
     e.preventDefault();
     setSaving(true);
     setError(null);
-    const result = await createUserAction({ email, password, name, role });
+    const result = await apiPost("/api-users.php?action=create", { email, password, name, role });
     setSaving(false);
     if (!result.ok) {
-      setError(result.message);
+      setError(result.error);
       return;
     }
-    router.push("/usuarios");
-    router.refresh();
+    navigate("/usuarios");
   }
 
   return (

@@ -1,28 +1,26 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { apiPost } from "@/lib/api";
 import type { StaticPage } from "@/lib/types";
-import { updateStaticPageAction } from "@/app/(dashboard)/paginas/actions";
 
 export function StaticPageForm({ page, canEdit }: { page: StaticPage; canEdit: boolean }) {
-  const router = useRouter();
   const [title, setTitle] = useState(page.title);
   const [content, setContent] = useState(page.content);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
-    const result = await updateStaticPageAction(page.slug, { title, content });
+    setSaved(false);
+    const result = await apiPost(`/api-pages.php?action=update&slug=${page.slug}`, { title, content });
     setSaving(false);
     if (!result.ok) {
-      setError(result.message);
+      setError(result.error);
       return;
     }
-    router.refresh();
+    setSaved(true);
   }
 
   return (
@@ -49,6 +47,7 @@ export function StaticPageForm({ page, canEdit }: { page: StaticPage; canEdit: b
         />
       </label>
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {saved && !error && <p className="text-sm text-green-700">Guardado.</p>}
       {canEdit && (
         <button
           type="submit"

@@ -1,10 +1,7 @@
-"use client";
-
 import { useState } from "react";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
+import { apiPost, apiUpload } from "@/lib/api";
 import type { PackageDetail, PackageInput, Region } from "@/lib/types";
-import { savePackageAction, deletePackageAction } from "@/app/(dashboard)/paquetes/actions";
 
 type ImageItem = { id: string; extension: string };
 
@@ -78,7 +75,7 @@ export function PackageForm({
   existing: PackageDetail | null;
   canDelete: boolean;
 }) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [form, setForm] = useState<PackageInput>(existing ? fromDetail(existing) : emptyInput());
   const [images, setImages] = useState<ImageItem[]>(
     existing ? existing.images.map((i) => ({ id: i.id, extension: i.extension })) : []
@@ -97,22 +94,14 @@ export function PackageForm({
     if (!file) return;
     setUploading(true);
     setError(null);
-    try {
-      const body = new FormData();
-      body.set("file", file);
-      const res = await fetch("/api/uploads", { method: "POST", body });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.message ?? "No se pudo subir la imagen");
-      }
-      const data = (await res.json()) as { id: string; extension: string };
-      setImages((prev) => [...prev, data]);
-      setForm((prev) => ({ ...prev, imageIds: [...prev.imageIds, data.id] }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error inesperado subiendo la imagen");
-    } finally {
-      setUploading(false);
+    const result = await apiUpload<{ id: string; extension: string }>("/api-uploads.php", file);
+    setUploading(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
     }
+    setImages((prev) => [...prev, { id: result.id, extension: result.extension }]);
+    setForm((prev) => ({ ...prev, imageIds: [...prev.imageIds, result.id] }));
   }
 
   function removeImage(id: string) {
@@ -124,20 +113,23 @@ export function PackageForm({
     e.preventDefault();
     setSaving(true);
     setError(null);
-    const result = await savePackageAction(existing?.id ?? null, form);
+    const action = existing
+      ? `/api-packages.php?action=update&id=${existing.id}`
+      : "/api-packages.php?action=create";
+    const result = await apiPost<{ id: string }>(action, form);
     setSaving(false);
     if (!result.ok) {
-      setError(result.message);
+      setError(result.error);
       return;
     }
-    router.push("/paquetes");
-    router.refresh();
+    navigate("/paquetes");
   }
 
   async function handleDelete() {
     if (!existing) return;
     if (!confirm(`¿Eliminar "${existing.title}"? No se puede deshacer.`)) return;
-    await deletePackageAction(existing.id);
+    await apiPost(`/api-packages.php?action=delete&id=${existing.id}`, {});
+    navigate("/paquetes");
   }
 
   return (
@@ -409,8 +401,12 @@ export function PackageForm({
         <h2 className="font-semibold text-brand-dark">Fotos</h2>
         <div className="grid grid-cols-4 gap-3">
           {images.map((img) => (
-            <div key={img.id} className="relative aspect-square overflow-hidden rounded-lg ring-1 ring-black/10">
-              <Image src={`/uploads/${img.id}.${img.extension}`} alt="" fill sizes="150px" className="object-cover" />
+            <div key={img.id} className="relative aspect-square overflow-hidden rounded-lg ring-1 ring-border">
+              <img
+                src={`/uploads/${img.id}.${img.extension}`}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+              />
               <button
                 type="button"
                 onClick={() => removeImage(img.id)}
@@ -421,7 +417,7 @@ export function PackageForm({
             </div>
           ))}
         </div>
-        <label className="inline-block cursor-pointer rounded-lg border border-dashed border-black/20 px-4 py-2 text-sm text-foreground/60 hover:bg-brand-light/30">
+        <label className="inline-block cursor-pointer rounded-lg border border-dashed border-border px-4 py-2 text-sm text-foreground/60 hover:bg-brand-light/30">
           {uploading ? "Subiendo..." : "Agregar foto"}
           <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleUpload} className="hidden" disabled={uploading} />
         </label>
@@ -429,7 +425,7 @@ export function PackageForm({
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="flex items-center justify-between border-t border-black/10 pt-6">
+      <div className="flex items-center justify-between border-t border-border pt-6">
         <button
           type="submit"
           disabled={saving}
