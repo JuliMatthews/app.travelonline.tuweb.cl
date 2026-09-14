@@ -9,13 +9,41 @@ $method = $_SERVER['REQUEST_METHOD'];
 $mysqli = db();
 
 if ($action === 'list' && $method === 'GET') {
-    $res = $mysqli->query(
-        'SELECT q.id, q.created_at, q.package_slug, q.package_title,
+    $where = [];
+    $params = [];
+    $types = '';
+
+    $status = $_GET['status'] ?? '';
+    if ($status !== '' && in_array($status, ['nueva', 'en_proceso', 'ganada', 'perdida'], true)) {
+        $where[] = 'q.status = ?';
+        $params[] = $status;
+        $types .= 's';
+    }
+
+    $assignedTo = $_GET['assignedTo'] ?? '';
+    if ($assignedTo === 'unassigned') {
+        $where[] = 'q.assigned_to IS NULL';
+    } elseif ($assignedTo === 'me') {
+        $where[] = 'q.assigned_to = ?';
+        $params[] = $session['user']['id'];
+        $types .= 's';
+    } elseif ($assignedTo !== '') {
+        $where[] = 'q.assigned_to = ?';
+        $params[] = $assignedTo;
+        $types .= 's';
+    }
+
+    $sql = 'SELECT q.id, q.created_at, q.package_slug, q.package_title,
                 q.passenger_name, q.passenger_email, q.total_clp, q.status,
                 u.name AS assigned_to_name
-         FROM quote_requests q LEFT JOIN users u ON u.id = q.assigned_to
-         ORDER BY q.created_at DESC'
-    );
+         FROM quote_requests q LEFT JOIN users u ON u.id = q.assigned_to';
+    if (count($where) > 0) $sql .= ' WHERE ' . implode(' AND ', $where);
+    $sql .= ' ORDER BY q.created_at DESC';
+
+    $stmt = $mysqli->prepare($sql);
+    if ($types !== '') $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $res = $stmt->get_result();
     $rows = [];
     while ($r = $res->fetch_assoc()) {
         $rows[] = [
@@ -89,6 +117,13 @@ if ($action === 'update' && $method === 'POST') {
     $stmt->execute();
     $stmt->close();
     json_ok([]);
+}
+
+if ($action === 'counts' && $method === 'GET') {
+    // liviano, para el badge de "nuevas" en la navegación del panel
+    $res = $mysqli->query("SELECT COUNT(*) AS n FROM quote_requests WHERE status = 'nueva'");
+    $row = $res->fetch_assoc();
+    json_ok(['nuevas' => (int) $row['n']]);
 }
 
 if ($action === 'users' && $method === 'GET') {

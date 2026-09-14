@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Navigate, NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { useTheme } from "@/lib/theme";
+import { apiGet } from "@/lib/api";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Super admin",
@@ -23,6 +25,22 @@ const ROLE_LABEL: Record<string, string> = {
 export default function DashboardLayout() {
   const { user, loading, logout } = useAuth();
   const { theme, toggle } = useTheme();
+  const [nuevas, setNuevas] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    async function poll() {
+      const res = await apiGet<{ nuevas: number }>("/api-quotes.php?action=counts");
+      if (!cancelled && res.ok) setNuevas(res.nuevas);
+    }
+    poll();
+    const interval = setInterval(poll, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [user]);
 
   if (loading) {
     return (
@@ -63,7 +81,13 @@ export default function DashboardLayout() {
             <LayoutDashboard size={18} /> Inicio
           </NavLink>
           <NavLink to="/cotizaciones" className={linkClass}>
-            <MessageSquareText size={18} /> Cotizaciones
+            <MessageSquareText size={18} />
+            <span className="flex-1">Cotizaciones</span>
+            {nuevas > 0 && (
+              <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-bold text-white">
+                {nuevas}
+              </span>
+            )}
           </NavLink>
           <NavLink to="/paquetes" className={linkClass}>
             <Package size={18} /> Paquetes
