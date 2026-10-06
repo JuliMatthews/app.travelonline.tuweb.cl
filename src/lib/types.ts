@@ -184,3 +184,35 @@ export type UserRow = {
   isActive: boolean;
   lastLoginAt: string | null;
 };
+
+export type ClientSummary = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  emailVerified: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+  quotesCount: number;
+};
+
+export type ClientQuoteSummary = {
+  id: number;
+  createdAt: string;
+  packageTitle: string;
+  status: QuoteStatus;
+  totalClp: number | null;
+};
+
+export type ClientDetail = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  emailVerified: boolean;
+  hasPassword: boolean;
+  hasGoogle: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+  internalNotes: string | null;
+};

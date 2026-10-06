@@ -7,6 +7,8 @@ import PaqueteNuevoPage from "@/pages/PaqueteNuevoPage";
 import PaqueteEditarPage from "@/pages/PaqueteEditarPage";
 import CotizacionesPage from "@/pages/CotizacionesPage";
 import CotizacionDetallePage from "@/pages/CotizacionDetallePage";
+import ClientesPage from "@/pages/ClientesPage";
+import ClienteDetallePage from "@/pages/ClienteDetallePage";
 import PaginasPage from "@/pages/PaginasPage";
 import PaginaEditarPage from "@/pages/PaginaEditarPage";
 import BlogPage from "@/pages/BlogPage";
@@ -27,6 +29,8 @@ export default function App() {
         <Route path="/paquetes/:id/editar" element={<PaqueteEditarPage />} />
         <Route path="/cotizaciones" element={<CotizacionesPage />} />
         <Route path="/cotizaciones/:id" element={<CotizacionDetallePage />} />
+        <Route path="/clientes" element={<ClientesPage />} />
+        <Route path="/clientes/:id" element={<ClienteDetallePage />} />
         <Route path="/paginas" element={<PaginasPage />} />
         <Route path="/paginas/:slug" element={<PaginaEditarPage />} />
         <Route path="/blog" element={<BlogPage />} />

@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Package,
   MessageSquareText,
+  Contact,
   FileText,
   Newspaper,
   Users,
@@ -89,6 +90,11 @@ export default function DashboardLayout() {
               </span>
             )}
           </NavLink>
+          {can(user, "clients:view") && (
+            <NavLink to="/clientes" className={linkClass}>
+              <Contact size={18} /> Clientes
+            </NavLink>
+          )}
           <NavLink to="/paquetes" className={linkClass}>
             <Package size={18} /> Paquetes
           </NavLink>

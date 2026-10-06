@@ -42,6 +42,55 @@ CREATE TABLE sessions (
   INDEX (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Cuenta de CLIENTE (distinta de `users`, que es el staff interno) — el
+-- visitante público del sitio. Puede entrar con Google (password_hash queda
+-- NULL, email_verified_at se llena de inmediato porque Google ya verificó el
+-- correo) o con correo+contraseña propios (password_hash lleno,
+-- email_verified_at queda NULL hasta que confirme vía el link que se le
+-- manda, ver client_email_verifications).
+CREATE TABLE clients (
+  id CHAR(36) NOT NULL PRIMARY KEY,
+  email VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NULL,
+  name VARCHAR(190) NOT NULL,
+  phone VARCHAR(64) NULL,
+  google_sub VARCHAR(64) NULL UNIQUE,
+  email_verified_at DATETIME NULL,
+  internal_notes MEDIUMTEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  last_login_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Sesión de cliente — mismo patrón que `sessions` (staff), pero separada a
+-- propósito: ningún token de cliente debe poder autenticar como staff ni
+-- viceversa, son dos sistemas de login completamente aparte.
+CREATE TABLE client_sessions (
+  id CHAR(36) NOT NULL PRIMARY KEY,
+  client_id CHAR(36) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME NOT NULL,
+  last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  user_agent VARCHAR(255) NULL,
+  ip_address VARCHAR(64) NULL,
+  CONSTRAINT client_sessions_client_fk FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+  INDEX (client_id),
+  INDEX (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tokens de verificación de correo (solo aplica a clientes con contraseña
+-- propia; los que entran por Google nunca necesitan uno).
+CREATE TABLE client_email_verifications (
+  id CHAR(36) NOT NULL PRIMARY KEY,
+  client_id CHAR(36) NOT NULL,
+  token VARCHAR(64) NOT NULL UNIQUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  CONSTRAINT client_email_verifications_client_fk FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+  INDEX (client_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE images (
   id CHAR(36) NOT NULL PRIMARY KEY,
   file_extension VARCHAR(8) NOT NULL,
@@ -173,6 +222,7 @@ CREATE TABLE quote_requests (
   package_id CHAR(36) NULL,
   package_slug VARCHAR(190) NOT NULL,
   package_title VARCHAR(255) NOT NULL,
+  client_id CHAR(36) NULL,
 
   adults INT NOT NULL,
   children INT NOT NULL,
@@ -202,7 +252,9 @@ CREATE TABLE quote_requests (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   CONSTRAINT quote_requests_package_fk FOREIGN KEY (package_id) REFERENCES packages(id) ON DELETE SET NULL,
-  CONSTRAINT quote_requests_assigned_to_fk FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT quote_requests_assigned_to_fk FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT quote_requests_client_fk FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+  INDEX (client_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO regions (id, slug, name, sort_order) VALUES
