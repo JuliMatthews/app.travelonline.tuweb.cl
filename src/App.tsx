@@ -1,12 +1,12 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import LoginPage from "@/pages/LoginPage";
-import DashboardHome from "@/pages/DashboardHome";
+import TableroPage from "@/pages/TableroPage";
 import PaquetesPage from "@/pages/PaquetesPage";
 import PaqueteNuevoPage from "@/pages/PaqueteNuevoPage";
 import PaqueteEditarPage from "@/pages/PaqueteEditarPage";
-import CotizacionesPage from "@/pages/CotizacionesPage";
-import CotizacionDetallePage from "@/pages/CotizacionDetallePage";
+import SolicitudesPage from "@/pages/SolicitudesPage";
+import SolicitudPage from "@/pages/SolicitudPage";
 import ClientesPage from "@/pages/ClientesPage";
 import ClienteDetallePage from "@/pages/ClienteDetallePage";
 import PaginasPage from "@/pages/PaginasPage";
@@ -23,12 +23,15 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<DashboardLayout />}>
-        <Route path="/" element={<DashboardHome />} />
+        <Route path="/" element={<TableroPage />} />
         <Route path="/paquetes" element={<PaquetesPage />} />
         <Route path="/paquetes/nuevo" element={<PaqueteNuevoPage />} />
         <Route path="/paquetes/:id/editar" element={<PaqueteEditarPage />} />
-        <Route path="/cotizaciones" element={<CotizacionesPage />} />
-        <Route path="/cotizaciones/:id" element={<CotizacionDetallePage />} />
+        <Route path="/solicitudes" element={<SolicitudesPage />} />
+        <Route path="/solicitudes/:id" element={<SolicitudPage />} />
+        {/* Direcciones antiguas del panel (antes "Cotizaciones") */}
+        <Route path="/cotizaciones" element={<Navigate to="/solicitudes" replace />} />
+        <Route path="/cotizaciones/:id" element={<LegacyQuoteRedirect />} />
         <Route path="/clientes" element={<ClientesPage />} />
         <Route path="/clientes/:id" element={<ClienteDetallePage />} />
         <Route path="/paginas" element={<PaginasPage />} />
@@ -42,4 +45,9 @@ export default function App() {
       </Route>
     </Routes>
   );
+}
+
+function LegacyQuoteRedirect() {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/solicitudes/${id}`} replace />;
 }

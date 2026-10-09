@@ -6,7 +6,9 @@ type Theme = "light" | "dark";
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  // Oscuro es el modo principal de todo el ecosistema (decisión de Julio,
+  // 2026-10-08); el claro queda disponible con el botón y se recuerda.
+  return "dark";
 }
 
 function applyTheme(theme: Theme) {

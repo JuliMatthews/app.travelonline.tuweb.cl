@@ -3,13 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import type { ClientDetail, ClientQuoteSummary } from "@/lib/types";
+import { STATUS_LABEL } from "@/lib/crm";
 
-const STATUS_LABEL: Record<string, string> = {
-  nueva: "Nueva",
-  en_proceso: "En proceso",
-  ganada: "Ganada",
-  perdida: "Perdida",
-};
 
 export default function ClienteDetallePage() {
   const { id } = useParams<{ id: string }>();
@@ -81,7 +76,7 @@ export default function ClienteDetallePage() {
               {quotes.map((q) => (
                 <Link
                   key={q.id}
-                  to={`/cotizaciones/${q.id}`}
+                  to={`/solicitudes/${q.id}`}
                   className="block rounded-xl border border-border bg-surface p-4 hover:bg-brand-light/20"
                 >
                   <div className="flex items-center justify-between">

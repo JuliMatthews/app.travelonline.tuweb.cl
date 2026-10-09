@@ -110,23 +110,54 @@ export type PackageInput = {
   imageIds: string[]; // orden = el orden final de la galería
 };
 
-export type QuoteStatus = "nueva" | "en_proceso" | "ganada" | "perdida";
+export type QuoteStatus =
+  | "nueva"
+  | "cotizacion_enviada"
+  | "en_seguimiento"
+  | "respondido"
+  | "venta_cerrada"
+  | "no_interesado";
+
+export type QuoteChannel = "web" | "telefono" | "whatsapp" | "instagram" | "correo" | "referido" | "otro";
+export type QuoteAlert = "urgente" | "atencion" | "aldia" | "cerrado";
 
 export type QuoteSummary = {
   id: number;
+  folio: string | null;
+  requestType: "paquete" | "a_medida" | "reunion" | "problema";
+  channel: QuoteChannel;
   createdAt: string;
-  packageSlug: string;
-  packageTitle: string;
+  packageSlug: string | null;
+  packageTitle: string | null;
+  destination: string | null;
+  originCity: string | null;
+  travelType: string | null;
+  adults: number;
+  children: number;
   passengerName: string;
-  passengerEmail: string;
+  passengerEmail: string | null;
+  passengerPhone: string;
   totalClp: number | null;
+  budgetClp: number | null;
+  budgetRange: string | null;
+  saleAmountClp: number | null;
   status: QuoteStatus;
+  assignedTo: string | null;
   assignedToName: string | null;
+  lastContactAt: string | null;
+  daysSinceContact: number;
+  alert: QuoteAlert;
+};
+
+export type QuoteActivity = {
+  id: number;
+  kind: "nota" | "estado" | "asignacion" | "sistema";
+  body: string;
+  createdAt: string;
+  authorName: string | null;
 };
 
 export type QuoteDetail = QuoteSummary & {
-  adults: number;
-  children: number;
   roomOptionLabel: string | null;
   selectedAddons: { id: string; name: string; priceClp: number }[];
   perPersonBaseClp: number | null;
@@ -136,10 +167,37 @@ export type QuoteDetail = QuoteSummary & {
   depositSuggestedClp: number | null;
   preferredDateFrom: string | null;
   preferredDateTo: string | null;
-  passengerPhone: string;
   comments: string | null;
   internalNotes: string | null;
-  assignedTo: string | null;
+  quotedAt: string | null;
+  closedAt: string | null;
+  details: Record<string, unknown>;
+  activity: QuoteActivity[];
+};
+
+export type GroupCount = { key: string; count: number };
+
+export type QuoteStats = {
+  total: number;
+  quoted: number;
+  responded: number;
+  sales: number;
+  followUp: number;
+  active: number;
+  urgent: number;
+  warning: number;
+  revenue: number;
+  potential: number;
+  avgResponseDays: number | null;
+  conversion: number;
+  conversionQuoted: number;
+  avgTicket: number;
+  month: { received: number; quoted: number; sales: number; sold: number; soldPrev: number; goal: number; day: number; daysInMonth: number };
+  byStatus: GroupCount[];
+  byChannel: GroupCount[];
+  byOwner: GroupCount[];
+  byTravelType: GroupCount[];
+  topDestinations: { destination: string; count: number; sales: number }[];
 };
 
 export type StaticPage = {
