@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Building2,
+  Heart,
   BarChart3,
 } from "lucide-react";
 import { useAuth, can } from "@/contexts/AuthContext";
@@ -110,6 +111,11 @@ function Shell() {
             ? navBadge(counts.cotVencidas, `${counts.cotVencidas} cotización(es) vencida(s)`)
             : navBadge(counts.urgentes || counts.nuevas, counts.urgentes ? `${counts.urgentes} urgentes` : `${counts.nuevas} nuevas`)}
         </NavLink>
+        )}
+        {can(user, "quotes:view") && (
+          <NavLink to="/fidelizacion" className={item}>
+            <Heart size={17} /> Fidelización
+          </NavLink>
         )}
         {can(user, "reports:view") && (
           <NavLink to="/reportes" className={item}>

@@ -204,6 +204,29 @@ if ($action === 'export' && $method === 'GET') {
     exit;
 }
 
+// Historial del mismo cliente (por correo o teléfono): otras compras y solicitudes, sin contar esta.
+function loyalty_for(mysqli $m, array $row): array {
+    $key = strtolower(trim((string) $row['passenger_email']));
+    $phone = preg_replace('/[^0-9]/', '', (string) $row['passenger_phone']);
+    if ($key === '' && $phone === '') return ['purchases' => 0, 'requests' => 0, 'totalClp' => 0, 'referred' => 0];
+    $s = $m->prepare("SELECT COUNT(*) AS n, COALESCE(SUM(status = 'venta_cerrada'), 0) AS p,
+        COALESCE(SUM(CASE WHEN status = 'venta_cerrada' THEN sale_amount_clp END), 0) AS t FROM quote_requests
+        WHERE id <> ? AND ((? <> '' AND LOWER(TRIM(passenger_email)) = ?) OR (? <> '' AND REPLACE(REPLACE(REPLACE(REPLACE(passenger_phone,' ',''),'+',''),'-',''),'(','') = ?))");
+    $s->bind_param('issss', $row['id'], $key, $key, $phone, $phone);
+    $s->execute();
+    $r = $s->get_result()->fetch_assoc();
+    $s->close();
+    $referred = 0;
+    if ($key !== '') {
+        $s = $m->prepare('SELECT COUNT(*) AS n FROM quote_requests WHERE LOWER(TRIM(referred_by_email)) = ?');
+        $s->bind_param('s', $key);
+        $s->execute();
+        $referred = (int) $s->get_result()->fetch_assoc()['n'];
+        $s->close();
+    }
+    return ['purchases' => (int) $r['p'], 'requests' => (int) $r['n'], 'totalClp' => (int) $r['t'], 'referred' => $referred];
+}
+
 if ($action === 'get' && $method === 'GET') {
     $id = (int) ($_GET['id'] ?? 0);
     $stmt = $mysqli->prepare(
@@ -249,6 +272,8 @@ if ($action === 'get' && $method === 'GET') {
         'preferredDateTo' => $row['preferred_date_to'],
         'comments' => $row['comments'],
         'internalNotes' => $row['internal_notes'],
+        'referredByEmail' => $row['referred_by_email'],
+        'loyalty' => loyalty_for($mysqli, $row),
         'operatorId' => $row['operator_id'] !== null ? (int) $row['operator_id'] : null,
         'quotedAt' => $row['quoted_at'],
         'closedAt' => $row['closed_at'],
@@ -298,6 +323,13 @@ if ($action === 'update' && $method === 'POST') {
     if ($status === 'cotizacion_enviada' && $prev['status'] !== 'cotizacion_enviada') $sets[] = 'quoted_at = COALESCE(quoted_at, NOW())';
     if (in_array($status, ['venta_cerrada', 'no_interesado'], true) && $prev['status'] !== $status) $sets[] = 'closed_at = NOW()';
     if (in_array($status, OPEN_STATUSES, true)) $sets[] = 'closed_at = NULL';
+    if (array_key_exists('referredByEmail', $input)) {
+        $ref = strtolower(trim((string) $input['referredByEmail']));
+        if ($ref !== '' && !filter_var($ref, FILTER_VALIDATE_EMAIL)) json_error('El correo de quien refirió no es válido', 400);
+        $sets[] = 'referred_by_email = ?';
+        $params[] = $ref !== '' ? $ref : null;
+        $types .= 's';
+    }
     // Operador de la venta y % de comisión congelado al cerrar.
     $operatorId = array_key_exists('operatorId', $input) ? ((int) $input['operatorId'] ?: null) : ($prev['operator_id'] !== null ? (int) $prev['operator_id'] : null);
     if ($operatorId !== null) {

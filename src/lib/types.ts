@@ -166,6 +166,8 @@ export type QuoteActivity = {
 };
 
 export type QuoteDetail = QuoteSummary & {
+  referredByEmail: string | null;
+  loyalty: Loyalty;
   operatorId: number | null;
   roomOptionLabel: string | null;
   selectedAddons: { id: string; name: string; priceClp: number }[];
@@ -359,4 +361,24 @@ export type Report = {
   operators: { id: number; name: string }[];
   owners: { id: string; name: string }[];
   canEditSplit: boolean;
+};
+
+export type Loyalty = { purchases: number; requests: number; totalClp: number; referred: number };
+
+export type Customer = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  requests: number;
+  purchases: number;
+  totalClp: number;
+  firstAt: string;
+  lastAt: string;
+  brands: QuoteBrand[];
+};
+export type Referrer = { email: string; name: string | null; referred: number; sales: number; totalClp: number };
+export type LoyaltyData = {
+  customers: Customer[];
+  summary: { customers: number; withPurchase: number; recurring: number };
+  referrers: Referrer[];
 };

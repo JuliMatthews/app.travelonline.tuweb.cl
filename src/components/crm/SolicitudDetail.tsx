@@ -49,6 +49,7 @@ export function SolicitudDetail({
   const [note, setNote] = useState("");
   const [chat, setChat] = useState("");
   const [chatTo, setChatTo] = useState("");
+  const [referrer, setReferrer] = useState("");
   const [internal, setInternal] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -62,6 +63,7 @@ export function SolicitudDetail({
       if (res.ok) {
         setQ(res.quote);
         setInternal(res.quote.internalNotes ?? "");
+        setReferrer(res.quote.referredByEmail ?? "");
         // Abrir la solicitud = leer los mensajes internos dirigidos a mí.
         if (res.quote.activity.some((a) => a.kind === "mensaje" && a.toUserId === user?.id && !a.readAt)) {
           apiPost(`/api-quotes.php?action=mark_read&id=${id}`, {}).then(() => reload());
@@ -156,6 +158,11 @@ export function SolicitudDetail({
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <StatusBadge status={q.status} />
         <BrandBadge brand={q.brand} />
+        {q.loyalty.purchases >= 1 && (
+          <span className="crm-badge" style={{ "--c": "var(--st-venta_cerrada)" } as React.CSSProperties} title={`${q.loyalty.purchases} compra(s) anterior(es) · ${clp(q.loyalty.totalClp)}`}>
+            ★ Cliente recurrente · {q.loyalty.purchases} compra{q.loyalty.purchases === 1 ? "" : "s"} previa{q.loyalty.purchases === 1 ? "" : "s"}
+          </span>
+        )}
         <ChannelBadge channel={q.channel} />
         {q.travelType && <span className="crm-badge" style={{ "--c": "var(--muted)" } as React.CSSProperties}>{q.travelType}</span>}
         <span className="crm-badge inline-flex items-center gap-1.5" style={{ "--c": "var(--muted)" } as React.CSSProperties}>
@@ -208,6 +215,24 @@ export function SolicitudDetail({
         <dd>{q.originCity ?? "—"}</dd>
         <dt>Llegó por</dt>
         <dd>{CHANNEL_LABEL[q.channel]}</dd>
+        <dt>Referido por</dt>
+        <dd>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              className="crm-field w-full max-w-[260px]"
+              placeholder="correo de quien lo recomendó"
+              disabled={!canEdit}
+              value={referrer}
+              onChange={(e) => setReferrer(e.target.value)}
+            />
+            {canEdit && referrer.trim().toLowerCase() !== (q.referredByEmail ?? "") && (
+              <button type="button" className="crm-btn" disabled={busy} onClick={() => save({ referredByEmail: referrer.trim() }, "Referido actualizado")}>
+                Guardar
+              </button>
+            )}
+          </div>
+          {q.loyalty.referred > 0 && <span className="text-[12px] text-[color:var(--muted)]">Este cliente ha recomendado a {q.loyalty.referred} persona{q.loyalty.referred === 1 ? "" : "s"}.</span>}
+        </dd>
         <dt>Marca</dt>
         <dd>
           {canEdit ? (
