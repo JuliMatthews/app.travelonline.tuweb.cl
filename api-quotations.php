@@ -28,6 +28,7 @@ function version_row_to_json(array $r, int $number): array {
         'lines' => json_decode($r['lines_json'], true) ?: [],
         'discountClp' => (int) $r['discount_clp'], 'discountLabel' => $r['discount_label'], 'totalClp' => (int) $r['total_clp'],
         'includesText' => $r['includes_text'], 'excludesText' => $r['excludes_text'], 'validUntil' => $r['valid_until'],
+        'promisedAt' => $r['promised_at'],
         'changeReason' => $r['change_reason'], 'createdAt' => $r['created_at'], 'updatedAt' => $r['updated_at'], 'sentAt' => $r['sent_at'],
         'createdByName' => $r['created_by_name'] ?? null,
     ];
@@ -83,9 +84,10 @@ function save_fields(mysqli $m, int $versionId, array $in): void {
     $exc = mb_substr(trim((string) ($in['excludesText'] ?? '')), 0, 4000) ?: null;
     $valid = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($in['validUntil'] ?? '')) ? $in['validUntil'] : null;
     $reason = mb_substr(trim((string) ($in['changeReason'] ?? '')), 0, 500) ?: null;
+    $promised = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($in['promisedAt'] ?? '')) ? $in['promisedAt'] : null;
     $s = $m->prepare('UPDATE quotation_versions SET title=?, subtitle=?, pax=?, lines_json=?, discount_clp=?, discount_label=?, total_clp=?,
-        includes_text=?, excludes_text=?, valid_until=?, change_reason=? WHERE id=?');
-    $s->bind_param('ssisisissssi', $title, $subtitle, $pax, $json, $disc, $discLabel, $total, $inc, $exc, $valid, $reason, $versionId);
+        includes_text=?, excludes_text=?, valid_until=?, change_reason=?, promised_at=? WHERE id=?');
+    $s->bind_param('ssisisisssssi', $title, $subtitle, $pax, $json, $disc, $discLabel, $total, $inc, $exc, $valid, $reason, $promised, $versionId);
     $s->execute();
     $s->close();
 }
@@ -186,13 +188,14 @@ if ($action === 'new_version' && $method === 'POST') {
     $valid = date('Y-m-d', strtotime('+' . VALID_DAYS . ' days'));
     $json = json_encode($last['lines'], JSON_UNESCAPED_UNICODE);
     $s = $mysqli->prepare("INSERT INTO quotation_versions (quotation_id, version, title, subtitle, pax, lines_json, discount_clp, discount_label, total_clp,
-        includes_text, excludes_text, valid_until, change_reason, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-    $s->bind_param('iissisisisssss', $quotation['id'], $next, $last['title'], $last['subtitle'], $last['pax'], $json, $last['discountClp'],
-        $last['discountLabel'], $last['totalClp'], $last['includesText'], $last['excludesText'], $valid, $reason, $userId);
+        includes_text, excludes_text, valid_until, promised_at, change_reason, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+    $promised = date('Y-m-d', strtotime('+1 day')); // regla: el cambio pedido por el cliente sale al día siguiente
+    $s->bind_param('iissisisissssss', $quotation['id'], $next, $last['title'], $last['subtitle'], $last['pax'], $json, $last['discountClp'],
+        $last['discountLabel'], $last['totalClp'], $last['includesText'], $last['excludesText'], $valid, $promised, $reason, $userId);
     $s->execute();
     $newVersionId = $mysqli->insert_id;
     $s->close();
-    log_quote_activity($mysqli, $requestId, $userId, 'sistema', 'Nueva versión ' . version_label($quotation['number'], $next) . ' en borrador' . ($reason ? " · $reason" : ''), $newVersionId);
+    log_quote_activity($mysqli, $requestId, $userId, 'sistema', 'Nueva versión ' . version_label($quotation['number'], $next) . ' en borrador, comprometida para mañana' . ($reason ? " · $reason" : ''), $newVersionId);
     json_ok(['quotation' => load_quotation($mysqli, $requestId)]);
 }
 

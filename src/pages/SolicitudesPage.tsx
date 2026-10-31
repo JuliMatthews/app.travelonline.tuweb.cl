@@ -5,11 +5,11 @@ import { apiGet } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { AlertDot, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
 import { SolicitudDetail } from "@/components/crm/SolicitudDetail";
-import { BRAND_LABEL, BRAND_ORDER, CHANNEL_LABEL, CHANNEL_ORDER, STATUS_LABEL, STATUS_ORDER, clp, fecha } from "@/lib/crm";
+import { BRAND_LABEL, BRAND_ORDER, plazoCot, CHANNEL_LABEL, CHANNEL_ORDER, STATUS_LABEL, STATUS_ORDER, clp, fecha } from "@/lib/crm";
 import type { QuoteSummary } from "@/lib/types";
 
 type QuoteUser = { id: string; name: string };
-const FILTERS = ["q", "status", "brand", "channel", "assignedTo", "alert", "sort"] as const;
+const FILTERS = ["q", "status", "brand", "channel", "assignedTo", "alert", "due", "sort"] as const;
 
 // Solicitudes — tabla maestra + cajón de detalle (pantalla 3 del CRM de Francisco).
 export default function SolicitudesPage() {
@@ -129,6 +129,11 @@ export default function SolicitudesPage() {
             </option>
           ))}
         </select>
+        <select className="crm-field" value={params.get("due") ?? ""} onChange={(e) => set("due", e.target.value)} aria-label="Cotización pendiente">
+          <option value="">Cotizaciones: todas</option>
+          <option value="pendientes">Con cotización pendiente de enviar</option>
+          <option value="vencidas">⏰ Cotización vencida</option>
+        </select>
         <select className="crm-field" value={params.get("alert") ?? ""} onChange={(e) => set("alert", e.target.value)} aria-label="Seguimiento">
           <option value="">Toda la cartera</option>
           <option value="activas">Solo activas</option>
@@ -211,6 +216,7 @@ export default function SolicitudesPage() {
                 <td>
                   <span className="whitespace-nowrap font-bold">{r.passengerName}</span>
                   <span className="sub">{r.originCity ?? r.passengerEmail ?? ""}</span>
+                  {r.quoteDue && <span className="sub" style={{ color: r.quoteOverdue ? "var(--risk)" : "var(--st-en_seguimiento)", fontWeight: 700 }}>⏰ {plazoCot(r.quoteDue)?.text}</span>}
                 </td>
                 <td className="min-w-[140px]">{r.destination ?? "—"}</td>
                 <td className="num">{r.adults + r.children}</td>

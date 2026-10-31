@@ -149,6 +149,8 @@ export type QuoteSummary = {
   lastContactAt: string | null;
   daysSinceContact: number;
   alert: QuoteAlert;
+  quoteDue: string | null;
+  quoteOverdue: boolean;
 };
 
 export type QuoteActivity = {
@@ -298,6 +300,7 @@ export type QuotationVersion = {
   includesText: string | null;
   excludesText: string | null;
   validUntil: string | null;
+  promisedAt: string | null;
   changeReason: string | null;
   createdAt: string;
   updatedAt: string;

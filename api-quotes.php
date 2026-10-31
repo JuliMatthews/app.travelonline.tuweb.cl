@@ -69,14 +69,19 @@ function quote_summary(array $r): array {
         'lastContactAt' => $r['last_contact_at'],
         'daysSinceContact' => $days,
         'alert' => alert_level($r['status'], $days),
+        'quoteDue' => $r['quote_due'] ?? null,
+        'quoteOverdue' => ($r['quote_due'] ?? null) !== null && $r['quote_due'] < date('Y-m-d'),
     ];
 }
 
 const SUMMARY_SELECT = 'SELECT q.id, q.folio, q.request_type, q.channel, q.brand, q.created_at, q.package_slug, q.package_title,
         q.destination_text, q.origin_city, q.travel_type, q.adults, q.children, q.passenger_name, q.passenger_email,
         q.passenger_phone, q.total_clp, q.budget_clp, q.budget_range, q.sale_amount_clp, q.status, q.assigned_to,
-        q.last_contact_at, u.name AS assigned_to_name, ' . DAYS_SQL . ' AS days_since_contact
-     FROM quote_requests q LEFT JOIN users u ON u.id = q.assigned_to';
+        q.last_contact_at, u.name AS assigned_to_name, ' . DAYS_SQL . ' AS days_since_contact, pq.quote_due
+     FROM quote_requests q LEFT JOIN users u ON u.id = q.assigned_to
+     LEFT JOIN (SELECT qn.request_id, MIN(qv.promised_at) AS quote_due FROM quotations qn
+        JOIN quotation_versions qv ON qv.quotation_id = qn.id AND qv.status = \'borrador\' AND qv.promised_at IS NOT NULL
+        GROUP BY qn.request_id) pq ON pq.request_id = q.id';
 
 // Filtros compartidos entre la lista y la exportación CSV.
 function build_filters(array $session): array {
@@ -121,6 +126,11 @@ function build_filters(array $session): array {
     elseif ($alert === 'aldia') $where[] = OPEN_SQL . ' AND ' . DAYS_SQL . ' < ' . ALERT_WARN_DAYS;
     elseif ($alert === 'activas') $where[] = OPEN_SQL;
 
+    // Cotización comprometida pendiente (borrador con plazo): "pendientes" = todas, "vencidas" = plazo ya pasado.
+    $due = $_GET['due'] ?? '';
+    if ($due === 'pendientes') $where[] = 'pq.quote_due IS NOT NULL';
+    elseif ($due === 'vencidas') $where[] = 'pq.quote_due < CURDATE()';
+
     $q = trim((string) ($_GET['q'] ?? ''));
     if ($q !== '') {
         $where[] = '(q.passenger_name LIKE ? OR q.passenger_email LIKE ? OR q.passenger_phone LIKE ?
@@ -142,7 +152,7 @@ function build_filters(array $session): array {
 function fetch_summaries(mysqli $mysqli, array $session, ?int $limit = null, int $offset = 0): array {
     [$where, $params, $types, $order] = build_filters($session);
     $sql = SUMMARY_SELECT . (count($where) ? ' WHERE ' . implode(' AND ', $where) : '') . " ORDER BY $order";
-    $countSql = 'SELECT COUNT(*) AS n FROM quote_requests q' . (count($where) ? ' WHERE ' . implode(' AND ', $where) : '');
+    $countSql = 'SELECT COUNT(*) AS n FROM quote_requests q LEFT JOIN (SELECT qn.request_id, MIN(qv.promised_at) AS quote_due FROM quotations qn JOIN quotation_versions qv ON qv.quotation_id = qn.id AND qv.status = \'borrador\' AND qv.promised_at IS NOT NULL GROUP BY qn.request_id) pq ON pq.request_id = q.id' . (count($where) ? ' WHERE ' . implode(' AND ', $where) : '');
 
     $stmt = $mysqli->prepare($countSql);
     if ($types !== '') $stmt->bind_param($types, ...$params);
@@ -462,10 +472,12 @@ if ($action === 'stats' && $method === 'GET') {
 if ($action === 'counts' && $method === 'GET') {
     require_auth('quotes:view');
     // liviano, para los badges de la navegación del panel
+    $venc = (int) $mysqli->query('SELECT COUNT(DISTINCT qn.request_id) AS n FROM quotations qn JOIN quotation_versions qv ON qv.quotation_id = qn.id
+        WHERE qv.status = \'borrador\' AND qv.promised_at < CURDATE()')->fetch_assoc()['n'];
     $row = $mysqli->query('SELECT SUM(q.status = \'nueva\') AS nuevas,
             SUM(' . OPEN_SQL . ' AND ' . DAYS_SQL . ' >= ' . ALERT_URGENT_DAYS . ') AS urgentes
         FROM quote_requests q')->fetch_assoc();
-    json_ok(['nuevas' => (int) $row['nuevas'], 'urgentes' => (int) $row['urgentes']]);
+    json_ok(['nuevas' => (int) $row['nuevas'], 'urgentes' => (int) $row['urgentes'], 'cotVencidas' => $venc]);
 }
 
 if ($action === 'users' && $method === 'GET') {

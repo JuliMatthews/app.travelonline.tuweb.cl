@@ -103,7 +103,9 @@ function Shell() {
         <NavLink to="/solicitudes" className={item}>
           <Inbox size={17} />
           <span>{can(user, "quotes:view") ? "Solicitudes" : "Ventas cerradas"}</span>
-          {navBadge(counts.urgentes || counts.nuevas, counts.urgentes ? `${counts.urgentes} urgentes` : `${counts.nuevas} nuevas`)}
+          {counts.cotVencidas > 0
+            ? navBadge(counts.cotVencidas, `${counts.cotVencidas} cotización(es) vencida(s)`)
+            : navBadge(counts.urgentes || counts.nuevas, counts.urgentes ? `${counts.urgentes} urgentes` : `${counts.nuevas} nuevas`)}
         </NavLink>
         {can(user, "clients:view") && (
           <NavLink to="/clientes" className={item}>

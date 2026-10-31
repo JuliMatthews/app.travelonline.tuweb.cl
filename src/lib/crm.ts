@@ -63,6 +63,19 @@ export const ALERT_LABEL: Record<QuoteAlert, string> = {
   cerrado: "Cerrada",
 };
 
+/** Texto del plazo de una cotización pendiente: "vencida hace 2 días", "para hoy", "para mañana", "para el 05-11-2026". */
+export function plazoCot(due: string | null | undefined): { text: string; late: boolean } | null {
+  if (!due) return null;
+  const hoy = new Date();
+  const base = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime();
+  const [y, m, d] = due.slice(0, 10).split("-").map(Number);
+  const dias = Math.round((new Date(y, m - 1, d).getTime() - base) / 86400000);
+  if (dias < 0) return { text: `Cotización vencida hace ${-dias} día${dias === -1 ? "" : "s"}`, late: true };
+  if (dias === 0) return { text: "Cotización comprometida para hoy", late: false };
+  if (dias === 1) return { text: "Cotización comprometida para mañana", late: false };
+  return { text: `Cotización comprometida para el ${fecha(due)}`, late: false };
+}
+
 export const statusVar = (s: string) => `var(--st-${s})`;
 export const brandVar = (b: string) => `var(--br-${b})`;
 export const channelVar = (c: string) => `var(--ch-${c})`;

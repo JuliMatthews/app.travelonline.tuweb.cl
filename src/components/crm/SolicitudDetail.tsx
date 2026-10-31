@@ -16,6 +16,7 @@ import {
   STATUS_ORDER,
   clp,
   fecha,
+  plazoCot,
   fechaHora,
   fechaLarga,
   haceDias,
@@ -177,6 +178,12 @@ export function SolicitudDetail({
           </Link>
         )}
       </div>
+
+      {q.quoteDue && (
+        <p className="mt-3 rounded-lg px-3 py-2 text-[12.5px] font-bold" style={{ background: plazoCot(q.quoteDue)?.late ? "var(--rosa-050)" : "var(--mar-050)", color: plazoCot(q.quoteDue)?.late ? "var(--risk)" : "var(--st-en_seguimiento)" }}>
+          ⏰ {plazoCot(q.quoteDue)?.text}
+        </p>
+      )}
 
       {msg && (
         <p className={`mt-3 rounded-lg px-3 py-2 text-[12.5px] font-semibold ${msg.ok ? "bg-[var(--mar-050)] text-[color:var(--ok)]" : "bg-[var(--rosa-050)] text-[color:var(--risk)]"}`} role="status">

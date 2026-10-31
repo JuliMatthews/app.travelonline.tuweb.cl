@@ -4,7 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
-import { clp, fecha, fechaHora } from "@/lib/crm";
+import { clp, fecha, fechaHora, plazoCot } from "@/lib/crm";
 import type { Quotation, QuotationLine, QuotationVersion } from "@/lib/types";
 
 const emptyLine = (): QuotationLine => ({ title: "", detail: "", amountClp: 0 });
@@ -148,7 +148,12 @@ export default function CotizacionPage() {
           <input className="crm-field" disabled={!editable} value={form.title} onChange={(e) => set("title", e.target.value)} />
           <label className="mt-3 block text-[12.5px] font-semibold">Subtítulo (noches, fechas…)</label>
           <input className="crm-field" disabled={!editable} value={form.subtitle ?? ""} onChange={(e) => set("subtitle", e.target.value)} />
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          {form.status === "borrador" && form.promisedAt && (
+            <p className="mt-3 rounded-lg px-3 py-2 text-[12.5px] font-bold" style={{ background: plazoCot(form.promisedAt)?.late ? "var(--rosa-050)" : "var(--mar-050)", color: plazoCot(form.promisedAt)?.late ? "var(--risk)" : "var(--st-en_seguimiento)" }}>
+              ⏰ {plazoCot(form.promisedAt)?.text}
+            </p>
+          )}
+          <div className="mt-3 grid grid-cols-3 gap-3">
             <div>
               <label className="block text-[12.5px] font-semibold">Pasajeros</label>
               <input className="crm-field" type="number" min={1} disabled={!editable} value={form.pax} onChange={(e) => set("pax", Number(e.target.value) || 1)} />
@@ -156,6 +161,10 @@ export default function CotizacionPage() {
             <div>
               <label className="block text-[12.5px] font-semibold">Válida hasta</label>
               <input className="crm-field" type="date" disabled={!editable} value={form.validUntil ?? ""} onChange={(e) => set("validUntil", e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[12.5px] font-semibold">Comprometida para</label>
+              <input className="crm-field" type="date" disabled={!editable} value={form.promisedAt ?? ""} onChange={(e) => set("promisedAt", e.target.value || null)} />
             </div>
           </div>
 
