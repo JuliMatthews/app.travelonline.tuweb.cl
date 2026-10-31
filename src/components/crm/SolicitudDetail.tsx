@@ -26,6 +26,7 @@ import {
 import type { QuoteBrand, QuoteDetail, QuoteStatus } from "@/lib/types";
 
 type QuoteUser = { id: string; name: string };
+type OperatorOpt = { id: number; name: string };
 
 // Detalle de una solicitud — cajón lateral del CRM de Francisco. Se usa en el
 // cajón de /solicitudes y en la página completa /solicitudes/:id.
@@ -53,6 +54,8 @@ export function SolicitudDetail({
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [closing, setClosing] = useState(false);
   const [sale, setSale] = useState("");
+  const [operators, setOperators] = useState<OperatorOpt[]>([]);
+  const [saleOperator, setSaleOperator] = useState("");
 
   const load = useCallback(() => {
     apiGet<{ quote: QuoteDetail }>(`/api-quotes.php?action=get&id=${id}`).then((res) => {
@@ -73,6 +76,7 @@ export function SolicitudDetail({
     setClosing(false);
     load();
     apiGet<{ users: QuoteUser[] }>("/api-quotes.php?action=users").then((res) => res.ok && setUsers(res.users));
+    apiGet<{ operators: OperatorOpt[] }>("/api-operators.php").then((res) => res.ok && setOperators(res.operators));
   }, [load]);
 
   async function save(body: Record<string, unknown>, okText: string) {
@@ -116,6 +120,7 @@ export function SolicitudDetail({
     if (s === "venta_cerrada") {
       setClosing(true);
       setSale(String(q.totalClp ?? q.budgetClp ?? ""));
+      setSaleOperator(q.operatorId ? String(q.operatorId) : "");
       return;
     }
     save({ status: s }, `Estado actualizado: ${STATUS_LABEL[s]}`);
@@ -307,6 +312,22 @@ export function SolicitudDetail({
           <>
             <dt>Monto vendido</dt>
             <dd className="font-bold text-[color:var(--ok)]">{clp(q.saleAmountClp)}</dd>
+            <dt>Operador</dt>
+            <dd>
+              <select
+                className="crm-field w-full max-w-[260px]"
+                disabled={!canEdit || busy}
+                value={q.operatorId ?? ""}
+                onChange={(e) => save({ operatorId: e.target.value ? Number(e.target.value) : null }, "Operador actualizado")}
+              >
+                <option value="">Sin operador</option>
+                {operators.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </dd>
           </>
         )}
       </dl>
@@ -373,7 +394,7 @@ export function SolicitudDetail({
               disabled={busy || !sale}
               onClick={() => {
                 setClosing(false);
-                save({ status: "venta_cerrada", saleAmountClp: Number(sale) }, "¡Venta cerrada!");
+                save({ status: "venta_cerrada", saleAmountClp: Number(sale), operatorId: saleOperator ? Number(saleOperator) : null }, "¡Venta cerrada!");
               }}
             >
               Confirmar venta
@@ -382,6 +403,17 @@ export function SolicitudDetail({
               Cancelar
             </button>
           </div>
+          <label className="mt-3 block text-[12.5px] font-semibold" htmlFor="sale-op">
+            Operador / proveedor de la venta (para la comisión)
+          </label>
+          <select id="sale-op" className="crm-field mt-1.5 w-full" value={saleOperator} onChange={(e) => setSaleOperator(e.target.value)}>
+            <option value="">Sin operador (se puede asignar después)</option>
+            {operators.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
           <p className="mt-1.5 text-[11.5px] text-[color:var(--muted)]">{sale ? clp(Number(sale)) : "Indica el monto total de la venta."}</p>
         </div>
       )}

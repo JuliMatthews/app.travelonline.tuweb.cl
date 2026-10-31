@@ -12,7 +12,7 @@ export default function TableroPage() {
   const navigate = useNavigate();
   const go = (qs: string) => navigate(`/solicitudes${qs ? `?${qs}` : ""}`);
 
-  if (!can(user, "quotes:view")) return <Navigate to="/solicitudes" replace />;
+  if (!can(user, "quotes:view")) return <Navigate to={can(user, "reports:view") ? "/reportes" : "/solicitudes"} replace />;
   if (!stats) return <p className="text-foreground/50">Cargando tablero…</p>;
 
   const s = stats;

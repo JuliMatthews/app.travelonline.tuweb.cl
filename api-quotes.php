@@ -249,6 +249,7 @@ if ($action === 'get' && $method === 'GET') {
         'preferredDateTo' => $row['preferred_date_to'],
         'comments' => $row['comments'],
         'internalNotes' => $row['internal_notes'],
+        'operatorId' => $row['operator_id'] !== null ? (int) $row['operator_id'] : null,
         'quotedAt' => $row['quoted_at'],
         'closedAt' => $row['closed_at'],
         'details' => $details,
@@ -262,7 +263,7 @@ if ($action === 'update' && $method === 'POST') {
     $input = json_body();
     $userId = $session['user']['id'];
 
-    $stmt = $mysqli->prepare('SELECT q.status, q.assigned_to, u.name AS assigned_to_name FROM quote_requests q
+    $stmt = $mysqli->prepare('SELECT q.status, q.assigned_to, q.operator_id, u.name AS assigned_to_name FROM quote_requests q
         LEFT JOIN users u ON u.id = q.assigned_to WHERE q.id = ?');
     $stmt->bind_param('i', $id);
     $stmt->execute();
@@ -297,6 +298,26 @@ if ($action === 'update' && $method === 'POST') {
     if ($status === 'cotizacion_enviada' && $prev['status'] !== 'cotizacion_enviada') $sets[] = 'quoted_at = COALESCE(quoted_at, NOW())';
     if (in_array($status, ['venta_cerrada', 'no_interesado'], true) && $prev['status'] !== $status) $sets[] = 'closed_at = NOW()';
     if (in_array($status, OPEN_STATUSES, true)) $sets[] = 'closed_at = NULL';
+    // Operador de la venta y % de comisión congelado al cerrar.
+    $operatorId = array_key_exists('operatorId', $input) ? ((int) $input['operatorId'] ?: null) : ($prev['operator_id'] !== null ? (int) $prev['operator_id'] : null);
+    if ($operatorId !== null) {
+        $o = $mysqli->prepare('SELECT commission_pct FROM operators WHERE id = ?');
+        $o->bind_param('i', $operatorId);
+        $o->execute();
+        $op = $o->get_result()->fetch_assoc();
+        $o->close();
+        if (!$op) json_error('Operador no válido', 400);
+    }
+    if (array_key_exists('operatorId', $input)) {
+        $sets[] = 'operator_id = ?';
+        $params[] = $operatorId;
+        $types .= 'i';
+    }
+    if ($status === 'venta_cerrada') {
+        $sets[] = 'commission_pct = ?';
+        $params[] = $operatorId !== null && $op['commission_pct'] !== null ? (float) $op['commission_pct'] : null;
+        $types .= 'd';
+    }
     if ($status === 'venta_cerrada' && $sale !== null) {
         $sets[] = 'sale_amount_clp = ?';
         $params[] = $sale;

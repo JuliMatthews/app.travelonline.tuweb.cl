@@ -166,6 +166,7 @@ export type QuoteActivity = {
 };
 
 export type QuoteDetail = QuoteSummary & {
+  operatorId: number | null;
   roomOptionLabel: string | null;
   selectedAddons: { id: string; name: string; priceClp: number }[];
   perPersonBaseClp: number | null;
@@ -328,4 +329,34 @@ export type Operator = {
   notes: string | null;
   isActive: boolean;
   commissionPct: number | null;
+};
+
+export type ReportRow = {
+  id: number;
+  folio: string | null;
+  brand: QuoteBrand;
+  passengerName: string;
+  destination: string | null;
+  closedAt: string | null;
+  saleClp: number;
+  operatorId: number | null;
+  operatorName: string | null;
+  commissionPct: number | null;
+  grossClp: number | null;
+  executiveClp: number | null;
+  managementClp: number | null;
+  agencyClp: number | null;
+  ownerId: string | null;
+  ownerName: string | null;
+};
+export type ReportGroup = { name: string; sales: number; saleClp: number; grossClp: number; executiveClp: number; managementClp: number; agencyClp: number };
+export type Report = {
+  rows: ReportRow[];
+  totals: { sales: number; saleClp: number; grossClp: number; executiveClp: number; managementClp: number; agencyClp: number; withoutOperator: number };
+  byOperator: ReportGroup[];
+  byOwner: ReportGroup[];
+  split: { executive: number; management: number; agency: number };
+  operators: { id: number; name: string }[];
+  owners: { id: string; name: string }[];
+  canEditSplit: boolean;
 };
