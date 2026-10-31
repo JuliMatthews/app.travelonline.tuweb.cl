@@ -58,12 +58,12 @@ ALTER TABLE quote_requests
   ADD CONSTRAINT quote_requests_received_by_fk FOREIGN KEY (received_by) REFERENCES users(id) ON DELETE SET NULL;
 
 -- Las filas que ya existían: destino = paquete, último contacto = creación,
--- y un folio con el mismo formato que el sitio (WEB-AAMMDD-NNNN, con el id
+-- y un folio con el mismo formato que el sitio (TOL-AAMMDD-NNNN, con el id
 -- para no chocar).
 UPDATE quote_requests SET
   destination_text = COALESCE(destination_text, package_title),
   last_contact_at = COALESCE(last_contact_at, created_at),
-  folio = COALESCE(folio, CONCAT('WEB-', DATE_FORMAT(created_at, '%y%m%d'), '-', LPAD(id, 4, '0')));
+  folio = COALESCE(folio, CONCAT('TOL-', DATE_FORMAT(created_at, '%y%m%d'), '-', LPAD(id, 4, '0')));
 
 -- 4) Historial de actividad -------------------------------------------------
 CREATE TABLE quote_activity (

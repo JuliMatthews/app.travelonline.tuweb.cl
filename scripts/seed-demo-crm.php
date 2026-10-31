@@ -107,7 +107,7 @@ for ($i = 0; $i < $total; $i++) {
     $budgetTotal = $presupuestoPp * $pax;
     $resp = $estado === 'nueva' && mt_rand(0, 1) ? null : $pick($equipo);
 
-    $folio = sprintf('%s-%s-%04d', $canal === 'telefono' ? 'TEL' : 'WEB', date('ymd', time() - $creadoH * 3600), mt_rand(1000, 9999));
+    $folio = sprintf('TOL-%s-%04d', date('ymd', time() - $creadoH * 3600), mt_rand(1000, 9999));
     $paquete = $tipoSol === 'paquete' ? $destino . ' – Todo Incluido' : null;
     $comentario = $pick(['', '', 'Es nuestro aniversario.', 'Preferimos hotel con piscina.', 'Viajamos con mi mamá de 70 años.', 'Queremos fechas flexibles.']);
     $details = json_encode(['demo' => true, 'incluir' => ['Vuelo', 'Hotel'], 'cuando' => $pick(['En los próximos 3 meses', 'Entre 3 y 6 meses', 'En más de 6 meses'])], JSON_UNESCAPED_UNICODE);

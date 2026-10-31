@@ -172,7 +172,7 @@ export function SolicitudDetail({
           </a>
         )}
         {onClose && (
-          <Link className="crm-btn" to={`/solicitudes/${q.id}`}>
+          <Link className="crm-btn" to={`/solicitudes/${q.id}`} target="_blank">
             Abrir página completa
           </Link>
         )}
@@ -184,6 +184,8 @@ export function SolicitudDetail({
         </p>
       )}
 
+      <div className="crm-cols">
+        <div className="crm-col">
       <div className="crm-section">Contacto</div>
       <dl className="crm-ficha">
         <dt>Correo</dt>
@@ -302,6 +304,28 @@ export function SolicitudDetail({
         )}
       </dl>
 
+      <div className="crm-section">Observaciones internas</div>
+      <textarea
+        className="crm-field"
+        placeholder="Notas visibles solo para el equipo."
+        value={internal}
+        disabled={!canEdit}
+        onChange={(e) => setInternal(e.target.value)}
+      />
+      {canEdit && (
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            className="crm-btn"
+            disabled={busy || internal === (q.internalNotes ?? "")}
+            onClick={() => save({ internalNotes: internal }, "Observaciones guardadas")}
+          >
+            Guardar observaciones
+          </button>
+        </div>
+      )}
+        </div>
+        <div className="crm-col">
       <div className="crm-section">Cambiar estado</div>
       <div className="flex flex-wrap gap-2">
         {STATUS_ORDER.map((s) => (
@@ -410,31 +434,18 @@ export function SolicitudDetail({
                 {a.kind === "mensaje" && ` → ${a.toName ?? "todo el equipo"} · mensaje interno`}
               </div>
               <div className="txt">{a.body}</div>
+              {a.versionId && (
+                <a className="crm-pdf-btn" href={`/cotizacion/${a.versionId}/pdf`} target="_blank" rel="noreferrer">
+                  <FileText size={12} /> Ver PDF
+                </a>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      <div className="crm-section">Observaciones internas</div>
-      <textarea
-        className="crm-field"
-        placeholder="Notas visibles solo para el equipo."
-        value={internal}
-        disabled={!canEdit}
-        onChange={(e) => setInternal(e.target.value)}
-      />
-      {canEdit && (
-        <div className="mt-2 flex justify-end">
-          <button
-            type="button"
-            className="crm-btn"
-            disabled={busy || internal === (q.internalNotes ?? "")}
-            onClick={() => save({ internalNotes: internal }, "Observaciones guardadas")}
-          >
-            Guardar observaciones
-          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

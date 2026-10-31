@@ -89,9 +89,9 @@ function save_fields(mysqli $m, int $versionId, array $in): void {
     $s->close();
 }
 
-function log_quote_activity(mysqli $m, int $requestId, string $userId, string $kind, string $body): void {
-    $s = $m->prepare('INSERT INTO quote_activity (quote_id, author_id, kind, body) VALUES (?, ?, ?, ?)');
-    $s->bind_param('isss', $requestId, $userId, $kind, $body);
+function log_quote_activity(mysqli $m, int $requestId, string $userId, string $kind, string $body, ?int $versionId = null): void {
+    $s = $m->prepare('INSERT INTO quote_activity (quote_id, author_id, kind, body, quotation_version_id) VALUES (?, ?, ?, ?, ?)');
+    $s->bind_param('isssi', $requestId, $userId, $kind, $body, $versionId);
     $s->execute();
     $s->close();
 }
@@ -158,8 +158,9 @@ if ($action === 'create' && $method === 'POST') {
     $inc = DEFAULT_INCLUDES; $exc = DEFAULT_EXCLUDES;
     $s->bind_param('isisissss', $qid, $title, $pax, $lines, $first, $inc, $exc, $valid, $userId);
     $s->execute();
+    $firstVersionId = $mysqli->insert_id;
     $s->close();
-    log_quote_activity($mysqli, $requestId, $userId, 'sistema', "Cotización N° $number creada (borrador)");
+    log_quote_activity($mysqli, $requestId, $userId, 'sistema', "Cotización N° $number creada (borrador)", $firstVersionId);
     $mysqli->commit();
     json_ok(['quotation' => load_quotation($mysqli, $requestId)]);
 }
@@ -187,8 +188,9 @@ if ($action === 'new_version' && $method === 'POST') {
     $s->bind_param('iissisisisssss', $quotation['id'], $next, $last['title'], $last['subtitle'], $last['pax'], $json, $last['discountClp'],
         $last['discountLabel'], $last['totalClp'], $last['includesText'], $last['excludesText'], $valid, $reason, $userId);
     $s->execute();
+    $newVersionId = $mysqli->insert_id;
     $s->close();
-    log_quote_activity($mysqli, $requestId, $userId, 'sistema', 'Nueva versión ' . version_label($quotation['number'], $next) . ' en borrador' . ($reason ? " · $reason" : ''));
+    log_quote_activity($mysqli, $requestId, $userId, 'sistema', 'Nueva versión ' . version_label($quotation['number'], $next) . ' en borrador' . ($reason ? " · $reason" : ''), $newVersionId);
     json_ok(['quotation' => load_quotation($mysqli, $requestId)]);
 }
 
@@ -207,7 +209,7 @@ if ($action === 'send' && $method === 'POST') {
     $s->bind_param('i', $rid);
     $s->execute();
     $s->close();
-    log_quote_activity($mysqli, $rid, $userId, 'estado', 'Cotización ' . version_label((int) $v['number'], (int) $v['version']) . ' marcada como enviada');
+    log_quote_activity($mysqli, $rid, $userId, 'estado', 'Cotización ' . version_label((int) $v['number'], (int) $v['version']) . ' marcada como enviada', (int) $v['id']);
     json_ok(['quotation' => load_quotation($mysqli, $rid)]);
 }
 

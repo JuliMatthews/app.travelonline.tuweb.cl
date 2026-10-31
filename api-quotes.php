@@ -208,7 +208,7 @@ if ($action === 'get' && $method === 'GET') {
     if (!$fullAccess) json_error('No autorizado', 403);
 
     $stmt = $mysqli->prepare(
-        'SELECT a.id, a.kind, a.body, a.created_at, u.name AS author_name, t.name AS to_name, a.to_user_id, a.read_at
+        'SELECT a.id, a.kind, a.body, a.created_at, u.name AS author_name, t.name AS to_name, a.to_user_id, a.read_at, a.quotation_version_id
          FROM quote_activity a LEFT JOIN users u ON u.id = a.author_id LEFT JOIN users t ON t.id = a.to_user_id
          WHERE a.quote_id = ? ORDER BY a.created_at DESC, a.id DESC'
     );
@@ -219,7 +219,8 @@ if ($action === 'get' && $method === 'GET') {
     while ($a = $res->fetch_assoc()) {
         $activity[] = ['id' => (int) $a['id'], 'kind' => $a['kind'], 'body' => $a['body'],
             'createdAt' => $a['created_at'], 'authorName' => $a['author_name'],
-            'toUserId' => $a['to_user_id'], 'toName' => $a['to_name'], 'readAt' => $a['read_at']];
+            'toUserId' => $a['to_user_id'], 'toName' => $a['to_name'], 'readAt' => $a['read_at'],
+            'versionId' => $a['quotation_version_id'] !== null ? (int) $a['quotation_version_id'] : null];
     }
     $stmt->close();
 

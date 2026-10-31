@@ -160,6 +160,7 @@ export type QuoteActivity = {
   toUserId: string | null;
   toName: string | null;
   readAt: string | null;
+  versionId: number | null;
 };
 
 export type QuoteDetail = QuoteSummary & {
