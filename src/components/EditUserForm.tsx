@@ -42,7 +42,9 @@ export function EditUserForm({ user, isSelf }: { user: UserRow; isSelf: boolean 
       <label className="block">
         <span className="block text-sm font-medium text-brand-dark">Rol</span>
         <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="input mt-1">
-          <option value="editor">Editor</option>
+          <option value="operaciones">Operaciones (Carolina)</option>
+          <option value="reportes">Reportes y comisiones</option>
+          <option value="editor">Editor de contenido</option>
           <option value="admin_viewer">Admin (solo ver)</option>
           <option value="super_admin">Super admin</option>
         </select>

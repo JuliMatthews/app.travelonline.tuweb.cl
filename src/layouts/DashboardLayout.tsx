@@ -23,6 +23,8 @@ const ROLE_LABEL: Record<string, string> = {
   super_admin: "Super admin",
   admin_viewer: "Gerencia · solo ver",
   editor: "Editor",
+  operaciones: "Operaciones",
+  reportes: "Reportes",
 };
 
 export default function DashboardLayout() {
@@ -93,12 +95,14 @@ function Shell() {
       </div>
 
       <nav className="flex flex-col gap-[3px]" aria-label="Menú del panel">
-        <NavLink to="/" end className={item}>
-          <LayoutDashboard size={17} /> Tablero
-        </NavLink>
+        {can(user, "quotes:view") && (
+          <NavLink to="/" end className={item}>
+            <LayoutDashboard size={17} /> Tablero
+          </NavLink>
+        )}
         <NavLink to="/solicitudes" className={item}>
           <Inbox size={17} />
-          <span>Solicitudes</span>
+          <span>{can(user, "quotes:view") ? "Solicitudes" : "Ventas cerradas"}</span>
           {navBadge(counts.urgentes || counts.nuevas, counts.urgentes ? `${counts.urgentes} urgentes` : `${counts.nuevas} nuevas`)}
         </NavLink>
         {can(user, "clients:view") && (
@@ -106,10 +110,14 @@ function Shell() {
             <Contact size={17} /> Clientes
           </NavLink>
         )}
-        <p className="mb-1 mt-4 px-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[#8fa0b8]">Sitio web</p>
-        <NavLink to="/paquetes" className={item}>
-          <Package size={17} /> Paquetes
-        </NavLink>
+        {can(user, "packages:view") && (
+          <p className="mb-1 mt-4 px-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[#8fa0b8]">Sitio web</p>
+        )}
+        {can(user, "packages:view") && (
+          <NavLink to="/paquetes" className={item}>
+            <Package size={17} /> Paquetes
+          </NavLink>
+        )}
         {can(user, "pages:view") && (
           <NavLink to="/paginas" className={item}>
             <FileText size={17} /> Páginas

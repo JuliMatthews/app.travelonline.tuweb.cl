@@ -2,17 +2,20 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Download } from "lucide-react";
 import { apiGet } from "@/lib/api";
-import { AlertDot, ChannelBadge, StatusBadge } from "@/components/crm/ui";
+import { useAuth, can } from "@/contexts/AuthContext";
+import { AlertDot, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
 import { SolicitudDetail } from "@/components/crm/SolicitudDetail";
-import { CHANNEL_LABEL, CHANNEL_ORDER, STATUS_LABEL, STATUS_ORDER, clp, fecha } from "@/lib/crm";
+import { BRAND_LABEL, BRAND_ORDER, CHANNEL_LABEL, CHANNEL_ORDER, STATUS_LABEL, STATUS_ORDER, clp, fecha } from "@/lib/crm";
 import type { QuoteSummary } from "@/lib/types";
 
 type QuoteUser = { id: string; name: string };
-const FILTERS = ["q", "status", "channel", "assignedTo", "alert", "sort"] as const;
+const FILTERS = ["q", "status", "brand", "channel", "assignedTo", "alert", "sort"] as const;
 
 // Solicitudes — tabla maestra + cajón de detalle (pantalla 3 del CRM de Francisco).
 export default function SolicitudesPage() {
   const [params, setParams] = useSearchParams();
+  const { user } = useAuth();
+  const full = can(user, "quotes:view"); // el rol "reportes" solo ve la tabla de ventas cerradas
   const [rows, setRows] = useState<QuoteSummary[] | null>(null);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -49,8 +52,8 @@ export default function SolicitudesPage() {
   }, [load]);
 
   useEffect(() => {
-    apiGet<{ users: QuoteUser[] }>("/api-quotes.php?action=users").then((res) => res.ok && setUsers(res.users));
-  }, []);
+    if (full) apiGet<{ users: QuoteUser[] }>("/api-quotes.php?action=users").then((res) => res.ok && setUsers(res.users));
+  }, [full]);
 
   // Búsqueda con pequeña espera para no consultar por cada tecla.
   useEffect(() => {
@@ -97,6 +100,14 @@ export default function SolicitudesPage() {
           {STATUS_ORDER.map((s) => (
             <option key={s} value={s}>
               {STATUS_LABEL[s]}
+            </option>
+          ))}
+        </select>
+        <select className="crm-field" value={params.get("brand") ?? ""} onChange={(e) => set("brand", e.target.value)} aria-label="Marca">
+          <option value="">Ambas marcas</option>
+          {BRAND_ORDER.map((b) => (
+            <option key={b} value={b}>
+              {BRAND_LABEL[b]}
             </option>
           ))}
         </select>
@@ -148,7 +159,7 @@ export default function SolicitudesPage() {
       {/* Celular: tarjetas */}
       <div className="crm-cards md:hidden">
         {(rows ?? []).map((r) => (
-          <button key={r.id} type="button" className="crm-card" onClick={() => set("id", String(r.id))}>
+          <button key={r.id} type="button" className="crm-card" onClick={() => full && set("id", String(r.id))}>
             <div className="l1">
               <b className="truncate">{r.passengerName}</b>
               <AlertDot alert={r.alert} days={r.daysSinceContact} />
@@ -158,6 +169,7 @@ export default function SolicitudesPage() {
             </div>
             <div className="l3">
               <StatusBadge status={r.status} />
+              <BrandBadge brand={r.brand} />
               <ChannelBadge channel={r.channel} />
               <span className="ml-auto text-[13px] font-bold">
                 {r.saleAmountClp != null ? clp(r.saleAmountClp) : clp(r.totalClp ?? r.budgetClp)}
@@ -177,6 +189,7 @@ export default function SolicitudesPage() {
               <th>Pasajero</th>
               <th>Destino</th>
               <th className="num">Pax</th>
+              <th>Marca</th>
               <th>Canal</th>
               <th>Estado</th>
               <th>Resp.</th>
@@ -190,8 +203,8 @@ export default function SolicitudesPage() {
                 key={r.id}
                 className="clic"
                 tabIndex={0}
-                onClick={() => set("id", String(r.id))}
-                onKeyDown={(e) => e.key === "Enter" && set("id", String(r.id))}
+                onClick={() => full && set("id", String(r.id))}
+                onKeyDown={(e) => e.key === "Enter" && full && set("id", String(r.id))}
               >
                 <td className="whitespace-nowrap text-[12px] text-[color:var(--muted)]">{r.folio ?? `#${r.id}`}</td>
                 <td className="whitespace-nowrap">{fecha(r.createdAt)}</td>
@@ -201,6 +214,9 @@ export default function SolicitudesPage() {
                 </td>
                 <td className="min-w-[140px]">{r.destination ?? "—"}</td>
                 <td className="num">{r.adults + r.children}</td>
+                <td>
+                  <BrandBadge brand={r.brand} />
+                </td>
                 <td>
                   <ChannelBadge channel={r.channel} />
                 </td>

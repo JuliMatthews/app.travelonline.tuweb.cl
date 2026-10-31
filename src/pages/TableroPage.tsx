@@ -1,4 +1,5 @@
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
 import { HBar, Kpi } from "@/components/crm/ui";
 import { CHANNEL_LABEL, STATUS_LABEL, STATUS_ORDER, channelVar, clpShort, fechaLarga, pct, statusVar } from "@/lib/crm";
@@ -7,9 +8,11 @@ import type { QuoteChannel, QuoteStatus } from "@/lib/types";
 // Tablero de control — pantalla 2 del CRM de Francisco, con datos reales.
 export default function TableroPage() {
   const { stats } = useCrm();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const go = (qs: string) => navigate(`/solicitudes${qs ? `?${qs}` : ""}`);
 
+  if (!can(user, "quotes:view")) return <Navigate to="/solicitudes" replace />;
   if (!stats) return <p className="text-foreground/50">Cargando tablero…</p>;
 
   const s = stats;

@@ -7,7 +7,7 @@ $session = require_auth('users:manage');
 $action = $_GET['action'] ?? 'list';
 $method = $_SERVER['REQUEST_METHOD'];
 $mysqli = db();
-$VALID_ROLES = ['super_admin', 'admin_viewer', 'editor'];
+$VALID_ROLES = ['super_admin', 'admin_viewer', 'editor', 'operaciones', 'reportes'];
 
 if ($action === 'list' && $method === 'GET') {
     $res = $mysqli->query('SELECT id, email, name, role, is_active, last_login_at FROM users ORDER BY name');

@@ -1,7 +1,7 @@
 // Tipos compartidos entre `web` y `admin`. Se va ampliando fase por fase del
 // plan de migración (ver ~/.claude/plans/luminous-prancing-lampson.md).
 
-export type Role = "super_admin" | "admin_viewer" | "editor";
+export type Role = "super_admin" | "admin_viewer" | "editor" | "operaciones" | "reportes";
 
 export type User = {
   id: string;
@@ -118,7 +118,8 @@ export type QuoteStatus =
   | "venta_cerrada"
   | "no_interesado";
 
-export type QuoteChannel = "web" | "telefono" | "whatsapp" | "instagram" | "correo" | "referido" | "otro";
+export type QuoteBrand = "travel_online" | "travel_viajes";
+export type QuoteChannel = "web" | "telefono" | "whatsapp" | "asistente" | "instagram" | "correo" | "referido" | "otro";
 export type QuoteAlert = "urgente" | "atencion" | "aldia" | "cerrado";
 
 export type QuoteSummary = {
@@ -126,6 +127,7 @@ export type QuoteSummary = {
   folio: string | null;
   requestType: "paquete" | "a_medida" | "reunion" | "problema";
   channel: QuoteChannel;
+  brand: QuoteBrand;
   createdAt: string;
   packageSlug: string | null;
   packageTitle: string | null;
@@ -151,10 +153,13 @@ export type QuoteSummary = {
 
 export type QuoteActivity = {
   id: number;
-  kind: "nota" | "estado" | "asignacion" | "sistema";
+  kind: "nota" | "estado" | "asignacion" | "sistema" | "mensaje";
   body: string;
   createdAt: string;
   authorName: string | null;
+  toUserId: string | null;
+  toName: string | null;
+  readAt: string | null;
 };
 
 export type QuoteDetail = QuoteSummary & {

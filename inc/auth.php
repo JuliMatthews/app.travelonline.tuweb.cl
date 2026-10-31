@@ -14,9 +14,18 @@ const ROLE_PERMISSIONS = [
         'pages:view', 'pages:edit',
         'blog:view', 'blog:create', 'blog:edit', 'blog:delete',
         'users:manage', 'settings:manage',
+        'reports:view', 'messages:send',
     ],
-    'admin_viewer' => ['quotes:view', 'clients:view', 'packages:view', 'pages:view', 'blog:view'],
-    'editor' => ['quotes:view', 'quotes:edit', 'clients:view', 'clients:edit', 'packages:view', 'packages:edit', 'pages:view', 'blog:view'],
+    'admin_viewer' => ['quotes:view', 'clients:view', 'packages:view', 'pages:view', 'blog:view', 'reports:view'],
+    'editor' => ['quotes:view', 'quotes:edit', 'clients:view', 'clients:edit', 'packages:view', 'packages:edit', 'pages:view', 'blog:view', 'messages:send'],
+    // Carolina: opera solicitudes y cotizaciones, edita paquetes, pero sin borrar,
+    // sin usuarios ni ajustes (no tiene el control total del negocio).
+    'operaciones' => [
+        'quotes:view', 'quotes:edit', 'clients:view', 'clients:edit',
+        'packages:view', 'packages:edit', 'pages:view', 'blog:view', 'messages:send',
+    ],
+    // Solo ventas cerradas y comisiones: no ve solicitudes abiertas ni datos de contacto.
+    'reportes' => ['reports:view'],
 ];
 
 function can(?array $user, string $action): bool {

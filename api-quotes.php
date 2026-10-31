@@ -6,14 +6,18 @@ require_once __DIR__ . '/inc/json.php';
 require_once __DIR__ . '/inc/auth.php';
 install_json_error_handlers();
 
-$session = require_auth('quotes:view');
+$session = require_auth();
+$fullAccess = can($session['user'], 'quotes:view');
+// Rol 'reportes': solo ventas cerradas, sin datos de contacto ni tablero operativo.
+if (!$fullAccess && !can($session['user'], 'reports:view')) json_error('No autorizado', 403);
 $action = $_GET['action'] ?? 'list';
 $method = $_SERVER['REQUEST_METHOD'];
 $mysqli = db();
 
 const QUOTE_STATUSES = ['nueva', 'cotizacion_enviada', 'en_seguimiento', 'respondido', 'venta_cerrada', 'no_interesado'];
 const OPEN_STATUSES = ['nueva', 'cotizacion_enviada', 'en_seguimiento', 'respondido'];
-const QUOTE_CHANNELS = ['web', 'telefono', 'whatsapp', 'instagram', 'correo', 'referido', 'otro'];
+const QUOTE_BRANDS = ['travel_online', 'travel_viajes'];
+const QUOTE_CHANNELS = ['web', 'telefono', 'whatsapp', 'asistente', 'instagram', 'correo', 'referido', 'otro'];
 const STATUS_LABELS = [
     'nueva' => 'Nueva', 'cotizacion_enviada' => 'Cotización enviada', 'en_seguimiento' => 'En seguimiento',
     'respondido' => 'Respondido', 'venta_cerrada' => 'Venta cerrada', 'no_interesado' => 'No interesado',
@@ -37,11 +41,13 @@ function nullable_int($v): ?int { return $v !== null ? (int) $v : null; }
 
 function quote_summary(array $r): array {
     $days = (int) $r['days_since_contact'];
+    $full = can(current_session()['user'] ?? null, 'quotes:view');
     return [
         'id' => (int) $r['id'],
         'folio' => $r['folio'],
         'requestType' => $r['request_type'],
         'channel' => $r['channel'],
+        'brand' => $r['brand'],
         'createdAt' => $r['created_at'],
         'packageSlug' => $r['package_slug'],
         'packageTitle' => $r['package_title'],
@@ -51,8 +57,8 @@ function quote_summary(array $r): array {
         'adults' => (int) $r['adults'],
         'children' => (int) $r['children'],
         'passengerName' => $r['passenger_name'],
-        'passengerEmail' => $r['passenger_email'],
-        'passengerPhone' => $r['passenger_phone'],
+        'passengerEmail' => $full ? $r['passenger_email'] : null,
+        'passengerPhone' => $full ? $r['passenger_phone'] : null,
         'totalClp' => nullable_int($r['total_clp']),
         'budgetClp' => nullable_int($r['budget_clp']),
         'budgetRange' => $r['budget_range'],
@@ -66,7 +72,7 @@ function quote_summary(array $r): array {
     ];
 }
 
-const SUMMARY_SELECT = 'SELECT q.id, q.folio, q.request_type, q.channel, q.created_at, q.package_slug, q.package_title,
+const SUMMARY_SELECT = 'SELECT q.id, q.folio, q.request_type, q.channel, q.brand, q.created_at, q.package_slug, q.package_title,
         q.destination_text, q.origin_city, q.travel_type, q.adults, q.children, q.passenger_name, q.passenger_email,
         q.passenger_phone, q.total_clp, q.budget_clp, q.budget_range, q.sale_amount_clp, q.status, q.assigned_to,
         q.last_contact_at, u.name AS assigned_to_name, ' . DAYS_SQL . ' AS days_since_contact
@@ -90,6 +96,13 @@ function build_filters(array $session): array {
         $params[] = $channel;
         $types .= 's';
     }
+    $brand = $_GET['brand'] ?? '';
+    if (in_array($brand, QUOTE_BRANDS, true)) {
+        $where[] = 'q.brand = ?';
+        $params[] = $brand;
+        $types .= 's';
+    }
+    if (!can($session['user'], 'quotes:view')) $where[] = "q.status = 'venta_cerrada'";
     $assignedTo = $_GET['assignedTo'] ?? '';
     if ($assignedTo === 'unassigned') {
         $where[] = 'q.assigned_to IS NULL';
@@ -170,10 +183,10 @@ if ($action === 'export' && $method === 'GET') {
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
     fputcsv($out, ['Folio', 'Fecha', 'Pasajero', 'Correo', 'Teléfono', 'Ciudad', 'Destino', 'Adultos', 'Niños', 'Canal',
-        'Tipo de viaje', 'Estado', 'Responsable', 'Presupuesto', 'Monto venta', 'Días sin contacto'], ';');
+        'Marca', 'Tipo de viaje', 'Estado', 'Responsable', 'Presupuesto', 'Monto venta', 'Días sin contacto'], ';');
     foreach ($rows as $r) {
         fputcsv($out, [$r['folio'], substr($r['createdAt'], 0, 10), $r['passengerName'], $r['passengerEmail'], $r['passengerPhone'],
-            $r['originCity'], $r['destination'], $r['adults'], $r['children'], $r['channel'], $r['travelType'],
+            $r['originCity'], $r['destination'], $r['adults'], $r['children'], $r['channel'], $r['brand'], $r['travelType'],
             STATUS_LABELS[$r['status']] ?? $r['status'], $r['assignedToName'], $r['budgetClp'], $r['saleAmountClp'],
             $r['daysSinceContact']], ';');
     }
@@ -191,11 +204,12 @@ if ($action === 'get' && $method === 'GET') {
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    if (!$row) json_error('Solicitud no encontrada', 404);
+    if (!$row || (!$fullAccess && $row['status'] !== 'venta_cerrada')) json_error('Solicitud no encontrada', 404);
+    if (!$fullAccess) json_error('No autorizado', 403);
 
     $stmt = $mysqli->prepare(
-        'SELECT a.id, a.kind, a.body, a.created_at, u.name AS author_name
-         FROM quote_activity a LEFT JOIN users u ON u.id = a.author_id
+        'SELECT a.id, a.kind, a.body, a.created_at, u.name AS author_name, t.name AS to_name, a.to_user_id, a.read_at
+         FROM quote_activity a LEFT JOIN users u ON u.id = a.author_id LEFT JOIN users t ON t.id = a.to_user_id
          WHERE a.quote_id = ? ORDER BY a.created_at DESC, a.id DESC'
     );
     $stmt->bind_param('i', $id);
@@ -204,7 +218,8 @@ if ($action === 'get' && $method === 'GET') {
     $activity = [];
     while ($a = $res->fetch_assoc()) {
         $activity[] = ['id' => (int) $a['id'], 'kind' => $a['kind'], 'body' => $a['body'],
-            'createdAt' => $a['created_at'], 'authorName' => $a['author_name']];
+            'createdAt' => $a['created_at'], 'authorName' => $a['author_name'],
+            'toUserId' => $a['to_user_id'], 'toName' => $a['to_name'], 'readAt' => $a['read_at']];
     }
     $stmt->close();
 
@@ -257,6 +272,12 @@ if ($action === 'update' && $method === 'POST') {
     $sets = ['status = ?', 'assigned_to = ?', 'last_contact_at = NOW()'];
     $params = [$status, $assignedTo];
     $types = 'ss';
+    if (isset($input['brand'])) {
+        if (!in_array($input['brand'], QUOTE_BRANDS, true)) json_error('Marca inválida', 400);
+        $sets[] = 'brand = ?';
+        $params[] = $input['brand'];
+        $types .= 's';
+    }
     if (array_key_exists('internalNotes', $input)) {
         $sets[] = 'internal_notes = ?';
         $params[] = $notes;
@@ -311,7 +332,63 @@ if ($action === 'note' && $method === 'POST') {
     json_ok([]);
 }
 
+if ($action === 'message' && $method === 'POST') {
+    // Mensaje interno entre ejecutivas, dentro de la solicitud. No cuenta como contacto con el cliente.
+    require_auth('messages:send');
+    $id = (int) ($_GET['id'] ?? 0);
+    $input = json_body();
+    $body = str_field($input, 'body');
+    if ($body === '') json_error('Escribe el mensaje', 400);
+    if (mb_strlen($body) > 2000) json_error('El mensaje es demasiado largo', 400);
+    $to = ($input['toUserId'] ?? '') ?: null;
+    if ($to !== null) {
+        $s = $mysqli->prepare('SELECT id FROM users WHERE id = ? AND is_active = 1');
+        $s->bind_param('s', $to);
+        $s->execute();
+        if (!$s->get_result()->fetch_assoc()) json_error('Destinataria no válida', 400);
+        $s->close();
+    }
+    $s = $mysqli->prepare('SELECT id FROM quote_requests WHERE id = ?');
+    $s->bind_param('i', $id);
+    $s->execute();
+    if (!$s->get_result()->fetch_assoc()) json_error('Solicitud no encontrada', 404);
+    $s->close();
+    $author = $session['user']['id'];
+    $stmt = $mysqli->prepare("INSERT INTO quote_activity (quote_id, author_id, to_user_id, kind, body) VALUES (?, ?, ?, 'mensaje', ?)");
+    $stmt->bind_param('isss', $id, $author, $to, $body);
+    $stmt->execute();
+    $stmt->close();
+    json_ok([]);
+}
+
+if ($action === 'inbox' && $method === 'GET') {
+    // Mensajes dirigidos a mí y sin leer (badge de la navegación).
+    require_auth('quotes:view');
+    $uid = $session['user']['id'];
+    $stmt = $mysqli->prepare("SELECT a.quote_id AS id, q.folio, a.body, a.created_at, u.name AS author_name
+        FROM quote_activity a JOIN quote_requests q ON q.id = a.quote_id LEFT JOIN users u ON u.id = a.author_id
+        WHERE a.kind = 'mensaje' AND a.to_user_id = ? AND a.read_at IS NULL ORDER BY a.created_at DESC LIMIT 50");
+    $stmt->bind_param('s', $uid);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $rows = [];
+    while ($r = $res->fetch_assoc()) $rows[] = ['quoteId' => (int) $r['id'], 'folio' => $r['folio'], 'body' => $r['body'],
+        'createdAt' => $r['created_at'], 'authorName' => $r['author_name']];
+    json_ok(['unread' => count($rows), 'messages' => $rows]);
+}
+
+if ($action === 'mark_read' && $method === 'POST') {
+    require_auth('quotes:view');
+    $id = (int) ($_GET['id'] ?? 0);
+    $uid = $session['user']['id'];
+    $stmt = $mysqli->prepare("UPDATE quote_activity SET read_at = NOW() WHERE quote_id = ? AND to_user_id = ? AND kind = 'mensaje' AND read_at IS NULL");
+    $stmt->bind_param('is', $id, $uid);
+    $stmt->execute();
+    json_ok([]);
+}
+
 if ($action === 'stats' && $method === 'GET') {
+    require_auth('quotes:view');
     // KPIs del tablero (regla 7 del CRM de Francisco), calculados sobre datos reales.
     $one = fn(string $sql) => $mysqli->query($sql)->fetch_assoc();
     $k = $one('SELECT COUNT(*) AS total,
@@ -382,6 +459,7 @@ if ($action === 'stats' && $method === 'GET') {
 }
 
 if ($action === 'counts' && $method === 'GET') {
+    require_auth('quotes:view');
     // liviano, para los badges de la navegación del panel
     $row = $mysqli->query('SELECT SUM(q.status = \'nueva\') AS nuevas,
             SUM(' . OPEN_SQL . ' AND ' . DAYS_SQL . ' >= ' . ALERT_URGENT_DAYS . ') AS urgentes
@@ -390,6 +468,7 @@ if ($action === 'counts' && $method === 'GET') {
 }
 
 if ($action === 'users' && $method === 'GET') {
+    require_auth('quotes:view');
     // lista liviana para el selector de "responsable"
     $res = $mysqli->query('SELECT id, name FROM users WHERE is_active = 1 ORDER BY name');
     $rows = [];

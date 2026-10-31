@@ -7,7 +7,9 @@ import type { UserRow } from "@/lib/types";
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Super admin",
   admin_viewer: "Admin (solo ver)",
-  editor: "Editor",
+  editor: "Editor de contenido",
+  operaciones: "Operaciones",
+  reportes: "Reportes y comisiones",
 };
 
 export default function UsuariosPage() {

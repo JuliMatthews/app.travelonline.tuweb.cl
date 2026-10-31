@@ -1,5 +1,5 @@
-import { ALERT_LABEL, CHANNEL_LABEL, STATUS_LABEL, channelVar, statusVar } from "@/lib/crm";
-import type { QuoteAlert, QuoteChannel, QuoteStatus } from "@/lib/types";
+import { ALERT_LABEL, BRAND_LABEL, CHANNEL_LABEL, STATUS_LABEL, brandVar, channelVar, statusVar } from "@/lib/crm";
+import type { QuoteAlert, QuoteBrand, QuoteChannel, QuoteStatus } from "@/lib/types";
 
 export function StatusBadge({ status }: { status: QuoteStatus }) {
   return (
@@ -13,6 +13,14 @@ export function ChannelBadge({ channel }: { channel: QuoteChannel }) {
   return (
     <span className="crm-badge" style={{ "--c": channelVar(channel) } as React.CSSProperties}>
       {CHANNEL_LABEL[channel] ?? channel}
+    </span>
+  );
+}
+
+export function BrandBadge({ brand }: { brand: QuoteBrand }) {
+  return (
+    <span className="crm-badge crm-brand" style={{ "--c": brandVar(brand) } as React.CSSProperties}>
+      {BRAND_LABEL[brand] ?? brand}
     </span>
   );
 }

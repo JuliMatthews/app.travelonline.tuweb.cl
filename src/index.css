@@ -55,6 +55,9 @@
   --st-no_interesado: #8a8f98;
   --ch-web: #5f6e54;
   --ch-whatsapp: #667a57;
+  --ch-asistente: #7a5f8f;
+  --br-travel_online: #2d4874;
+  --br-travel_viajes: #a0612f;
   --ch-telefono: #2d4874;
   --ch-instagram: #99634f;
   --ch-correo: #406e81;
@@ -98,6 +101,9 @@
   --st-no_interesado: #7d8596;
   --ch-web: #a9c29b;
   --ch-whatsapp: #8fc1a0;
+  --ch-asistente: #c3a9d8;
+  --br-travel_online: #9db7dd;
+  --br-travel_viajes: #e8b283;
   --ch-telefono: #9db7dd;
   --ch-instagram: #e5c3ba;
   --ch-correo: #7eafc6;
@@ -501,6 +507,8 @@ body {
     border: 2px solid var(--surface);
   }
   .crm-timeline .ev.estado::before { background: var(--rosa-600); }
+  .crm-timeline .ev.mensaje::before { background: var(--st-respondido); }
+  .crm-timeline .ev.mensaje .txt { border-left: 3px solid var(--st-respondido); padding-left: 8px; }
   .crm-timeline .ev.sistema::before { background: var(--muted); }
   .crm-timeline .meta { font-size: 11.5px; color: var(--muted); }
   .crm-timeline .txt { font-size: 13px; }

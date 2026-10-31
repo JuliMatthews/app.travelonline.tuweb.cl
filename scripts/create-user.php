@@ -2,12 +2,12 @@
 // Bootstrap de cuentas — no hay auto-registro público (login cerrado por
 // allowlist). Sirve para crear la primera cuenta super_admin o resetear una
 // contraseña desde línea de comandos.
-// Uso: php scripts/create-user.php <email> <password> "<nombre>" <super_admin|admin_viewer|editor>
+// Uso: php scripts/create-user.php <email> <password> "<nombre>" <super_admin|admin_viewer|editor|operaciones|reportes>
 require_once __DIR__ . '/../inc/db.php';
 
 [, $email, $password, $name, $role] = $argv + [null, null, null, null, null];
 
-$validRoles = ['super_admin', 'admin_viewer', 'editor'];
+$validRoles = ['super_admin', 'admin_viewer', 'editor', 'operaciones', 'reportes'];
 if (!$email || !$password || !$name || !in_array($role, $validRoles, true)) {
     fwrite(STDERR, "Uso: php scripts/create-user.php <email> <password> \"<nombre>\" <" . implode('|', $validRoles) . ">\n");
     exit(1);

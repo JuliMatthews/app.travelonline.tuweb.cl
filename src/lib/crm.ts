@@ -1,6 +1,6 @@
 // Catálogos y formatos del CRM — mismos estados, canales y formato chileno
 // que el CRM de Francisco (03-reglas-de-negocio.md, sección 10).
-import type { QuoteAlert, QuoteChannel, QuoteStatus } from "@/lib/types";
+import type { QuoteAlert, QuoteBrand, QuoteChannel, QuoteStatus } from "@/lib/types";
 
 export const STATUS_ORDER: QuoteStatus[] = [
   "nueva",
@@ -29,16 +29,24 @@ export const STATUS_HELP: Record<QuoteStatus, string> = {
   no_interesado: "Descartada · candidata a reactivación",
 };
 
-export const CHANNEL_ORDER: QuoteChannel[] = ["web", "whatsapp", "telefono", "instagram", "correo", "referido", "otro"];
+export const CHANNEL_ORDER: QuoteChannel[] = ["web", "asistente", "whatsapp", "telefono", "instagram", "correo", "referido", "otro"];
 
 export const CHANNEL_LABEL: Record<QuoteChannel, string> = {
   web: "Sitio web",
   telefono: "Teléfono",
-  whatsapp: "WhatsApp",
+  whatsapp: "WhatsApp directo",
+  asistente: "Cotizar con asistente",
   instagram: "Instagram",
   correo: "Correo",
   referido: "Recomendación",
   otro: "Otro",
+};
+
+export const BRAND_ORDER: QuoteBrand[] = ["travel_online", "travel_viajes"];
+
+export const BRAND_LABEL: Record<QuoteBrand, string> = {
+  travel_online: "Travel Online",
+  travel_viajes: "Travel Viajes",
 };
 
 export const REQUEST_TYPE_LABEL: Record<string, string> = {
@@ -56,6 +64,7 @@ export const ALERT_LABEL: Record<QuoteAlert, string> = {
 };
 
 export const statusVar = (s: string) => `var(--st-${s})`;
+export const brandVar = (b: string) => `var(--br-${b})`;
 export const channelVar = (c: string) => `var(--ch-${c})`;
 
 const clpFmt = new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 });

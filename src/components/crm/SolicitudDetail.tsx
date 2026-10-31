@@ -4,9 +4,11 @@ import { FileText, MessageCircle, Mail, X } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
-import { AlertDot, ChannelBadge, StatusBadge } from "@/components/crm/ui";
+import { AlertDot, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
 import {
   ALERT_LABEL,
+  BRAND_LABEL,
+  BRAND_ORDER,
   CHANNEL_LABEL,
   REQUEST_TYPE_LABEL,
   STATUS_HELP,
@@ -20,7 +22,7 @@ import {
   pax,
   statusVar,
 } from "@/lib/crm";
-import type { QuoteDetail, QuoteStatus } from "@/lib/types";
+import type { QuoteBrand, QuoteDetail, QuoteStatus } from "@/lib/types";
 
 type QuoteUser = { id: string; name: string };
 
@@ -38,10 +40,13 @@ export function SolicitudDetail({
   const { user } = useAuth();
   const { reload } = useCrm();
   const canEdit = can(user, "quotes:edit");
+  const canMessage = can(user, "messages:send");
   const [q, setQ] = useState<QuoteDetail | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [users, setUsers] = useState<QuoteUser[]>([]);
   const [note, setNote] = useState("");
+  const [chat, setChat] = useState("");
+  const [chatTo, setChatTo] = useState("");
   const [internal, setInternal] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -53,9 +58,13 @@ export function SolicitudDetail({
       if (res.ok) {
         setQ(res.quote);
         setInternal(res.quote.internalNotes ?? "");
+        // Abrir la solicitud = leer los mensajes internos dirigidos a mí.
+        if (res.quote.activity.some((a) => a.kind === "mensaje" && a.toUserId === user?.id && !a.readAt)) {
+          apiPost(`/api-quotes.php?action=mark_read&id=${id}`, {}).then(() => reload());
+        }
       } else setNotFound(true);
     });
-  }, [id]);
+  }, [id, user?.id, reload]);
 
   useEffect(() => {
     setQ(null);
@@ -88,6 +97,17 @@ export function SolicitudDetail({
     load();
     reload();
     onChanged?.();
+  }
+
+  async function sendChat() {
+    if (!chat.trim()) return;
+    setBusy(true);
+    const res = await apiPost(`/api-quotes.php?action=message&id=${id}`, { body: chat, toUserId: chatTo || null });
+    setBusy(false);
+    if (!res.ok) return setMsg({ ok: false, text: res.error });
+    setChat("");
+    setMsg({ ok: true, text: "Mensaje interno enviado. El cliente no lo ve." });
+    load();
   }
 
   function changeStatus(s: QuoteStatus) {
@@ -129,6 +149,7 @@ export function SolicitudDetail({
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <StatusBadge status={q.status} />
+        <BrandBadge brand={q.brand} />
         <ChannelBadge channel={q.channel} />
         {q.travelType && <span className="crm-badge" style={{ "--c": "var(--muted)" } as React.CSSProperties}>{q.travelType}</span>}
         <span className="crm-badge inline-flex items-center gap-1.5" style={{ "--c": "var(--muted)" } as React.CSSProperties}>
@@ -173,6 +194,26 @@ export function SolicitudDetail({
         <dd>{q.originCity ?? "—"}</dd>
         <dt>Llegó por</dt>
         <dd>{CHANNEL_LABEL[q.channel]}</dd>
+        <dt>Marca</dt>
+        <dd>
+          {canEdit ? (
+            <select
+              className="crm-field"
+              value={q.brand}
+              disabled={busy}
+              aria-label="Marca"
+              onChange={(e) => save({ brand: e.target.value as QuoteBrand }, `Marca: ${BRAND_LABEL[e.target.value as QuoteBrand]}`)}
+            >
+              {BRAND_ORDER.map((b) => (
+                <option key={b} value={b}>
+                  {BRAND_LABEL[b]}
+                </option>
+              ))}
+            </select>
+          ) : (
+            BRAND_LABEL[q.brand]
+          )}
+        </dd>
       </dl>
 
       <div className="crm-section">Información del viaje</div>
@@ -329,6 +370,34 @@ export function SolicitudDetail({
         </button>
       </div>
 
+      {canMessage && (
+        <>
+          <div className="crm-section">Mensaje interno al equipo</div>
+          <select className="crm-field mb-2" value={chatTo} onChange={(e) => setChatTo(e.target.value)} aria-label="Destinataria">
+            <option value="">Para todo el equipo</option>
+            {users
+              .filter((u) => u.id !== user?.id)
+              .map((u) => (
+                <option key={u.id} value={u.id}>
+                  Para {u.name}
+                </option>
+              ))}
+          </select>
+          <textarea
+            className="crm-field"
+            placeholder="Ej: Carolina, el cliente pidió cambiar el hotel; revisa antes de enviar la nueva versión."
+            value={chat}
+            onChange={(e) => setChat(e.target.value)}
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-[11.5px] text-[color:var(--muted)]">Solo lo ve el equipo. No cuenta como contacto con el cliente.</span>
+            <button type="button" className="crm-btn primary" disabled={busy || !chat.trim()} onClick={sendChat}>
+              Enviar mensaje
+            </button>
+          </div>
+        </>
+      )}
+
       <div className="crm-section">Historial de actividad</div>
       {q.activity.length === 0 ? (
         <p className="text-[13px] text-[color:var(--muted)]">Sin actividad registrada.</p>
@@ -338,6 +407,7 @@ export function SolicitudDetail({
             <div key={a.id} className={`ev ${a.kind}`}>
               <div className="meta">
                 {fechaHora(a.createdAt)} · {a.authorName ?? "Sistema"}
+                {a.kind === "mensaje" && ` → ${a.toName ?? "todo el equipo"} · mensaje interno`}
               </div>
               <div className="txt">{a.body}</div>
             </div>
