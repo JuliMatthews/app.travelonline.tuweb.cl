@@ -14,6 +14,8 @@ import PaginaEditarPage from "@/pages/PaginaEditarPage";
 import BlogPage from "@/pages/BlogPage";
 import BlogNuevoPage from "@/pages/BlogNuevoPage";
 import BlogEditarPage from "@/pages/BlogEditarPage";
+import CotizacionPage from "@/pages/CotizacionPage";
+import CotizacionPdfPage from "@/pages/CotizacionPdfPage";
 import UsuariosPage from "@/pages/UsuariosPage";
 import UsuarioNuevoPage from "@/pages/UsuarioNuevoPage";
 import UsuarioEditarPage from "@/pages/UsuarioEditarPage";
@@ -22,6 +24,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/cotizacion/:versionId/pdf" element={<CotizacionPdfPage />} />
       <Route element={<DashboardLayout />}>
         <Route path="/" element={<TableroPage />} />
         <Route path="/paquetes" element={<PaquetesPage />} />
@@ -29,6 +32,7 @@ export default function App() {
         <Route path="/paquetes/:id/editar" element={<PaqueteEditarPage />} />
         <Route path="/solicitudes" element={<SolicitudesPage />} />
         <Route path="/solicitudes/:id" element={<SolicitudPage />} />
+        <Route path="/solicitudes/:id/cotizacion" element={<CotizacionPage />} />
         {/* Direcciones antiguas del panel (antes "Cotizaciones") */}
         <Route path="/cotizaciones" element={<Navigate to="/solicitudes" replace />} />
         <Route path="/cotizaciones/:id" element={<LegacyQuoteRedirect />} />

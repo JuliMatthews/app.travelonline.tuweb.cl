@@ -158,9 +158,9 @@ export function SolicitudDetail({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" className="crm-btn primary" disabled title="Llega en la fase 4: cotización formal con PDF y versiones">
-          <FileText size={15} /> Generar cotización <span className="text-[11px] opacity-80">(fase 4)</span>
-        </button>
+        <Link className="crm-btn primary" to={`/solicitudes/${q.id}/cotizacion`}>
+          <FileText size={15} /> Cotización y versiones
+        </Link>
         {wsp && (
           <a className="crm-btn" href={wsp} target="_blank" rel="noopener noreferrer">
             <MessageCircle size={15} /> WhatsApp

@@ -279,3 +279,34 @@ export type ClientDetail = {
   lastLoginAt: string | null;
   internalNotes: string | null;
 };
+
+export type QuotationLine = { title: string; detail: string; amountClp: number };
+
+export type QuotationVersion = {
+  id: number;
+  version: number;
+  label: string;
+  status: "borrador" | "enviada";
+  title: string;
+  subtitle: string | null;
+  pax: number;
+  lines: QuotationLine[];
+  discountClp: number;
+  discountLabel: string | null;
+  totalClp: number;
+  includesText: string | null;
+  excludesText: string | null;
+  validUntil: string | null;
+  changeReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sentAt: string | null;
+  createdByName: string | null;
+};
+
+export type Quotation = { id: number; requestId: number; number: number; versions: QuotationVersion[] };
+
+export type QuotationPrint = {
+  version: QuotationVersion & { number: number };
+  request: { folio: string | null; brand: QuoteBrand; passengerName: string; passengerEmail: string | null; passengerPhone: string };
+};
