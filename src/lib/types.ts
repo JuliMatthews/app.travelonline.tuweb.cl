@@ -315,3 +315,17 @@ export type QuotationPrint = {
   version: QuotationVersion & { number: number };
   request: { folio: string | null; brand: QuoteBrand; passengerName: string; passengerEmail: string | null; passengerPhone: string };
 };
+
+export type Operator = {
+  id: number;
+  name: string;
+  country: string;
+  kind: string;
+  destinations: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  isActive: boolean;
+  commissionPct: number | null;
+};

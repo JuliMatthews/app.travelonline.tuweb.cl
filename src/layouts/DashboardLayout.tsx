@@ -13,6 +13,7 @@ import {
   Moon,
   Menu,
   X,
+  Building2,
 } from "lucide-react";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { CrmProvider, useCrm } from "@/contexts/CrmContext";
@@ -110,6 +111,11 @@ function Shell() {
         {can(user, "clients:view") && (
           <NavLink to="/clientes" className={item}>
             <Contact size={17} /> Clientes
+          </NavLink>
+        )}
+        {can(user, "operators:view") && (
+          <NavLink to="/operadores" className={item}>
+            <Building2 size={17} /> Operadores
           </NavLink>
         )}
         {can(user, "packages:view") && (

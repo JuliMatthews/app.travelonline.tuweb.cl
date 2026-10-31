@@ -59,11 +59,12 @@ const ROLE_PERMISSIONS: Record<Role, string[]> = {
     "blog:view", "blog:create", "blog:edit", "blog:delete",
     "users:manage", "settings:manage",
     "reports:view", "messages:send",
+    "operators:view", "operators:edit", "operators:commission",
   ],
-  admin_viewer: ["quotes:view", "clients:view", "packages:view", "pages:view", "blog:view", "reports:view"],
-  editor: ["quotes:view", "quotes:edit", "clients:view", "clients:edit", "packages:view", "packages:edit", "pages:view", "blog:view", "messages:send"],
-  operaciones: ["quotes:view", "quotes:edit", "clients:view", "clients:edit", "packages:view", "packages:edit", "pages:view", "blog:view", "messages:send"],
-  reportes: ["reports:view"],
+  admin_viewer: ["quotes:view", "clients:view", "packages:view", "pages:view", "blog:view", "reports:view", "operators:view", "operators:commission"],
+  editor: ["quotes:view", "quotes:edit", "clients:view", "clients:edit", "packages:view", "packages:edit", "pages:view", "blog:view", "messages:send", "operators:view"],
+  operaciones: ["quotes:view", "quotes:edit", "clients:view", "clients:edit", "packages:view", "packages:edit", "pages:view", "blog:view", "messages:send", "operators:view"],
+  reportes: ["reports:view", "operators:view", "operators:commission"],
 };
 
 // Solo para mostrar/ocultar botones — el chequeo que realmente protege

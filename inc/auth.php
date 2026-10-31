@@ -15,17 +15,18 @@ const ROLE_PERMISSIONS = [
         'blog:view', 'blog:create', 'blog:edit', 'blog:delete',
         'users:manage', 'settings:manage',
         'reports:view', 'messages:send',
+        'operators:view', 'operators:edit', 'operators:commission',
     ],
-    'admin_viewer' => ['quotes:view', 'clients:view', 'packages:view', 'pages:view', 'blog:view', 'reports:view'],
-    'editor' => ['quotes:view', 'quotes:edit', 'clients:view', 'clients:edit', 'packages:view', 'packages:edit', 'pages:view', 'blog:view', 'messages:send'],
+    'admin_viewer' => ['quotes:view', 'clients:view', 'packages:view', 'pages:view', 'blog:view', 'reports:view', 'operators:view', 'operators:commission'],
+    'editor' => ['quotes:view', 'quotes:edit', 'clients:view', 'clients:edit', 'packages:view', 'packages:edit', 'pages:view', 'blog:view', 'messages:send', 'operators:view'],
     // Carolina: opera solicitudes y cotizaciones, edita paquetes, pero sin borrar,
     // sin usuarios ni ajustes (no tiene el control total del negocio).
     'operaciones' => [
         'quotes:view', 'quotes:edit', 'clients:view', 'clients:edit',
-        'packages:view', 'packages:edit', 'pages:view', 'blog:view', 'messages:send',
+        'packages:view', 'packages:edit', 'pages:view', 'blog:view', 'messages:send', 'operators:view',
     ],
     // Solo ventas cerradas y comisiones: no ve solicitudes abiertas ni datos de contacto.
-    'reportes' => ['reports:view'],
+    'reportes' => ['reports:view', 'operators:view', 'operators:commission'],
 ];
 
 function can(?array $user, string $action): bool {

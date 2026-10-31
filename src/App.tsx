@@ -16,6 +16,7 @@ import BlogNuevoPage from "@/pages/BlogNuevoPage";
 import BlogEditarPage from "@/pages/BlogEditarPage";
 import CotizacionPage from "@/pages/CotizacionPage";
 import CotizacionPdfPage from "@/pages/CotizacionPdfPage";
+import OperadoresPage from "@/pages/OperadoresPage";
 import UsuariosPage from "@/pages/UsuariosPage";
 import UsuarioNuevoPage from "@/pages/UsuarioNuevoPage";
 import UsuarioEditarPage from "@/pages/UsuarioEditarPage";
@@ -36,6 +37,7 @@ export default function App() {
         {/* Direcciones antiguas del panel (antes "Cotizaciones") */}
         <Route path="/cotizaciones" element={<Navigate to="/solicitudes" replace />} />
         <Route path="/cotizaciones/:id" element={<LegacyQuoteRedirect />} />
+        <Route path="/operadores" element={<OperadoresPage />} />
         <Route path="/clientes" element={<ClientesPage />} />
         <Route path="/clientes/:id" element={<ClienteDetallePage />} />
         <Route path="/paginas" element={<PaginasPage />} />
