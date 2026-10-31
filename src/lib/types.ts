@@ -308,6 +308,7 @@ export type QuotationVersion = {
 export type Quotation = { id: number; requestId: number; number: number; versions: QuotationVersion[] };
 
 export type QuotationPrint = {
+  reviewTo: string | null;
   version: QuotationVersion & { number: number };
   request: { folio: string | null; brand: QuoteBrand; passengerName: string; passengerEmail: string | null; passengerPhone: string };
 };

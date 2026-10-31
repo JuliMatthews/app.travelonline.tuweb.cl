@@ -4,6 +4,7 @@
 // Los totales SIEMPRE se recalculan acá; nunca se confía en el total que manda el navegador.
 require_once __DIR__ . '/inc/json.php';
 require_once __DIR__ . '/inc/auth.php';
+require_once __DIR__ . '/inc/quote_email.php';
 install_json_error_handlers();
 
 $session = require_auth('quotes:view');
@@ -121,6 +122,7 @@ if ($action === 'print' && $method === 'GET') {
     $s->close();
     json_ok([
         'version' => version_row_to_json($v, (int) $v['number']) + ['number' => (int) $v['number']],
+        'reviewTo' => defined('MAIL_REVIEW_TO') ? MAIL_REVIEW_TO : null,
         'request' => ['folio' => $req['folio'], 'brand' => $req['brand'], 'passengerName' => $req['passenger_name'],
             'passengerEmail' => $req['passenger_email'], 'passengerPhone' => $req['passenger_phone']],
     ]);
@@ -194,23 +196,72 @@ if ($action === 'new_version' && $method === 'POST') {
     json_ok(['quotation' => load_quotation($mysqli, $requestId)]);
 }
 
-// Marcar como enviada: congela la versión y mueve la solicitud a "Cotización enviada".
-if ($action === 'send' && $method === 'POST') {
-    $v = find_version($mysqli, (int) ($_GET['versionId'] ?? 0));
-    if ($v['status'] !== 'borrador') json_error('Esta versión ya está marcada como enviada', 409);
-    if ((int) $v['total_clp'] <= 0) json_error('El total debe ser mayor a cero antes de enviar', 400);
-    $s = $mysqli->prepare("UPDATE quotation_versions SET status='enviada', sent_at=NOW() WHERE id=?");
+// Congela la versión y mueve la solicitud a "Cotización enviada".
+function mark_version_sent(mysqli $m, array $v, string $userId, string $activityText): void {
+    $s = $m->prepare("UPDATE quotation_versions SET status='enviada', sent_at=NOW() WHERE id=?");
     $s->bind_param('i', $v['id']);
     $s->execute();
     $s->close();
     $rid = (int) $v['request_id'];
-    $s = $mysqli->prepare("UPDATE quote_requests SET last_contact_at = NOW(), quoted_at = COALESCE(quoted_at, NOW()),
+    $s = $m->prepare("UPDATE quote_requests SET last_contact_at = NOW(), quoted_at = COALESCE(quoted_at, NOW()),
         status = IF(status IN ('nueva','en_seguimiento','respondido'), 'cotizacion_enviada', status) WHERE id = ?");
     $s->bind_param('i', $rid);
     $s->execute();
     $s->close();
-    log_quote_activity($mysqli, $rid, $userId, 'estado', 'Cotización ' . version_label((int) $v['number'], (int) $v['version']) . ' marcada como enviada', (int) $v['id']);
-    json_ok(['quotation' => load_quotation($mysqli, $rid)]);
+    log_quote_activity($m, $rid, $userId, 'estado', $activityText, (int) $v['id']);
+}
+
+if ($action === 'send' && $method === 'POST') {
+    $v = find_version($mysqli, (int) ($_GET['versionId'] ?? 0));
+    if ($v['status'] !== 'borrador') json_error('Esta versión ya está marcada como enviada', 409);
+    if ((int) $v['total_clp'] <= 0) json_error('El total debe ser mayor a cero antes de enviar', 400);
+    mark_version_sent($mysqli, $v, $userId, 'Cotización ' . version_label((int) $v['number'], (int) $v['version']) . ' marcada como enviada');
+    json_ok(['quotation' => load_quotation($mysqli, (int) $v['request_id'])]);
+}
+
+// Envío por correo. target=review → casilla de revisión (no congela la versión);
+// target=client → al correo del pasajero (congela la versión). En ambos va copia OCULTA a gerencia.
+if ($action === 'email' && $method === 'POST') {
+    $v = find_version($mysqli, (int) ($_GET['versionId'] ?? 0));
+    $target = json_body()['target'] ?? '';
+    if (!in_array($target, ['review', 'client'], true)) json_error('Destino inválido', 400);
+    if ((int) $v['total_clp'] <= 0) json_error('El total debe ser mayor a cero antes de enviar', 400);
+    $s = $mysqli->prepare('SELECT folio, brand, passenger_name, passenger_email FROM quote_requests WHERE id = ?');
+    $s->bind_param('i', $v['request_id']);
+    $s->execute();
+    $req = $s->get_result()->fetch_assoc();
+    $s->close();
+
+    $label = version_label((int) $v['number'], (int) $v['version']);
+    $brandName = $req['brand'] === 'travel_viajes' ? 'Travel Viajes' : 'Travel Online';
+    $reviewTo = defined('MAIL_REVIEW_TO') ? MAIL_REVIEW_TO : '';
+    $bcc = defined('MAIL_BCC_BOSS') && MAIL_BCC_BOSS !== '' ? MAIL_BCC_BOSS : null;
+    $first = qe_h(explode(' ', trim($req['passenger_name']))[0]);
+
+    if ($target === 'review') {
+        if ($reviewTo === '') json_error('No hay casilla de revisión configurada', 500);
+        $panel = (defined('ADMIN_PUBLIC_URL') ? rtrim(ADMIN_PUBLIC_URL, '/') : '') . '/cotizacion/' . (int) $v['id'] . '/pdf';
+        $intro = 'Cotización para <b>revisión interna</b>, aún no enviada al cliente. Revísala con calma; si todo está correcto, reenvíala a <b>'
+            . qe_h($req['passenger_email'] ?: 'el correo del cliente') . '</b>.';
+        $subject = '[' . $req['folio'] . "] REVISIÓN · Cotización $label · " . $req['passenger_name'];
+        $ok = send_html_mail($reviewTo, $subject, render_quote_email($v, $req, $brandName, $intro, $panel), $bcc, $session['user']['email']);
+        if (!$ok) json_error('No se pudo enviar el correo', 500);
+        log_quote_activity($mysqli, (int) $v['request_id'], $userId, 'sistema', "Cotización $label enviada a $reviewTo para revisión", (int) $v['id']);
+    } else {
+        $email = (string) $req['passenger_email'];
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) json_error('La solicitud no tiene un correo de cliente válido', 400);
+        $intro = "Hola $first, gracias por contactarnos. Te enviamos tu cotización. Para cualquier duda o cambio, responde este correo y mantén el código <b>"
+            . qe_h($req['folio']) . '</b> en el asunto.';
+        $subject = '[' . $req['folio'] . "] Tu cotización de viaje N° $label · $brandName";
+        $ok = send_html_mail($email, $subject, render_quote_email($v, $req, $brandName, $intro), $bcc, $reviewTo ?: null);
+        if (!$ok) json_error('No se pudo enviar el correo', 500);
+        if ($v['status'] === 'borrador') {
+            mark_version_sent($mysqli, $v, $userId, "Cotización $label enviada al cliente por correo ($email)");
+        } else {
+            log_quote_activity($mysqli, (int) $v['request_id'], $userId, 'estado', "Cotización $label reenviada al cliente por correo ($email)", (int) $v['id']);
+        }
+    }
+    json_ok(['sent' => true]);
 }
 
 json_error('Ruta no encontrada', 404);

@@ -17,3 +17,4 @@ config.php
 npm-debug.log*
 .pnpm-debug.log*
 *.tsbuildinfo
+/mail-outbox/

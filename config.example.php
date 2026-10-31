@@ -22,3 +22,11 @@ define('SESSION_COOKIE_NAME', 'to_admin_session');
 // cuando hace falta guardarlas como texto fijo (p.ej. <img> incrustados en
 // el contenido de una página estática). En producción: https://app.travelonline.tuweb.cl
 define('ADMIN_PUBLIC_URL', 'http://localhost:8801');
+
+// Correo de cotizaciones. MAIL_REVIEW_TO = casilla de revisión (visible en el botón del PDF);
+// MAIL_BCC_BOSS = copia oculta a gerencia en TODO envío (no se muestra en el panel).
+// MAIL_DRY_RUN = true guarda el correo en mail-outbox/ en vez de enviarlo (para pruebas locales).
+define('MAIL_FROM', 'reservas@ejemplo.cl');
+define('MAIL_REVIEW_TO', 'reservas@ejemplo.cl');
+define('MAIL_BCC_BOSS', 'gerencia@ejemplo.cl');
+define('MAIL_DRY_RUN', false);

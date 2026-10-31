@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Check, X } from "lucide-react";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
+import { useAuth, can } from "@/contexts/AuthContext";
 import { BRAND_LABEL, clp, fecha, fechaLarga } from "@/lib/crm";
 import type { QuotationPrint } from "@/lib/types";
 
@@ -60,7 +61,14 @@ const CSS = `
 .pdf-foot h5 { margin: 0 0 5px; font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: #dab9b1 }
 .pdf-foot .lg { display: flex; align-items: center; gap: 8px; color: #fff; font-weight: 800; font-size: 15px; margin-bottom: 5px }
 .pdf-legal { margin-top: 14px; padding-top: 9px; border-top: 1px solid rgb(255 255 255 / .14); display: flex; justify-content: space-between; opacity: .75; font-size: 9.5px }
-.pdf-btn { position: fixed; top: 16px; left: 20px; padding: 9px 16px; border-radius: 22px; border: 0; background: #2d4874; color: #fff; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgb(0 0 0 / .25); z-index: 5 }
+.pdf-bar { width: 210mm; max-width: 100%; margin: 0 auto 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px }
+.pdf-bar > div { background: #fff; border: 1px solid #d5dbe5; border-radius: 14px; padding: 12px 14px; text-align: center }
+.pdf-bar button { width: 100%; padding: 10px 12px; border-radius: 22px; border: 0; background: #2d4874; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer }
+.pdf-bar button.alt { background: #406e81 }
+.pdf-bar button.warn { background: #99634f }
+.pdf-bar button:disabled { opacity: .5; cursor: not-allowed }
+.pdf-bar small { display: block; margin-top: 7px; font-size: 11px; line-height: 1.4; color: #6b7385 }
+.pdf-flash { width: 210mm; max-width: 100%; margin: 0 auto 12px; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 600 }
 @media print { .pdf-bg { background: none; padding: 0 } .pdf-sheet { box-shadow: none; width: 100%; min-height: 297mm } .no-print { display: none !important } }
 `;
 
@@ -87,6 +95,9 @@ function Globe({ size = 30 }: { size?: number }) {
 export default function CotizacionPdfPage() {
   const { versionId } = useParams<{ versionId: string }>();
   const [data, setData] = useState<QuotationPrint | null | undefined>(undefined);
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     apiGet<QuotationPrint>(`/api-quotations.php?action=print&versionId=${versionId}`).then((res) => setData(res.ok ? res : null));
@@ -96,6 +107,20 @@ export default function CotizacionPdfPage() {
   if (data === null) return <p style={{ padding: 24 }}>No se pudo cargar la cotización (¿iniciaste sesión?).</p>;
 
   const { version: v, request: r } = data;
+  const canSend = can(user, "quotes:edit");
+
+  async function send(target: "review" | "client") {
+    if (target === "client" && !window.confirm(`Se enviará la cotización ${v.label} a ${r.passengerEmail}. ¿Confirmas que el presupuesto cumple lo exigido?`)) return;
+    setBusy(true);
+    setFlash(null);
+    const res = await apiPost(`/api-quotations.php?action=email&versionId=${v.id}`, { target });
+    setBusy(false);
+    setFlash(
+      res.ok
+        ? { ok: true, text: target === "review" ? `Enviada a ${data!.reviewTo} para revisión.` : `Enviada al cliente (${r.passengerEmail}).` }
+        : { ok: false, text: res.error }
+    );
+  }
   const subtotal = v.lines.reduce((a, l) => a + l.amountClp, 0);
   const items = (t: string | null) => (t ?? "").split("\n").map((x) => x.trim()).filter(Boolean);
   const label = v.version <= 1 ? String(v.number) : `${v.number}.${v.version - 1}`;
@@ -105,9 +130,35 @@ export default function CotizacionPdfPage() {
   return (
     <div className="pdf-bg">
       <style>{CSS}</style>
-      <button className="pdf-btn no-print" onClick={() => window.print()}>
-        Imprimir / Guardar PDF
-      </button>
+      <div className="pdf-bar no-print">
+        <div>
+          <button type="button" onClick={() => window.print()}>Imprimir / Guardar PDF</button>
+          <small>Descarga esta cotización como archivo PDF.</small>
+        </div>
+        {canSend ? (
+          <>
+            <div>
+              <button type="button" className="alt" disabled={busy || !data.reviewTo} onClick={() => send("review")}>
+                Enviar al correo {data.reviewTo}
+              </button>
+              <small>(Podrá revisar el PDF con más calma antes de enviar al cliente)</small>
+            </div>
+            <div>
+              <button type="button" className="warn" disabled={busy || !r.passengerEmail} onClick={() => send("client")}>
+                Enviar al cliente
+              </button>
+              <small>(Solo si está seguro de que el PPTO cumple con lo exigido)</small>
+            </div>
+          </>
+        ) : (
+          <div style={{ gridColumn: "span 2" }}><small>Tu rol no permite enviar cotizaciones.</small></div>
+        )}
+      </div>
+      {flash && (
+        <div className="pdf-flash no-print" style={{ background: flash.ok ? "#e5efe0" : "#f6e0dc", color: flash.ok ? "#3d5a2f" : "#8a3c2d" }}>
+          {flash.text}
+        </div>
+      )}
       <div className="pdf-sheet">
         <header className="pdf-head">
           <div className="pdf-top">
