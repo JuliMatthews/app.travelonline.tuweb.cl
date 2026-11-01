@@ -95,10 +95,12 @@ export default function NuevaSolicitudPage() {
               key={r.v}
               type="button"
               onClick={() => setReason(r.v)}
-              className={`rounded-xl border p-3 text-left text-[13px] ${reason === r.v ? "border-[var(--mar)] bg-[var(--mar-050)]" : "border-[var(--border)]"}`}
+              className={`crm-choice ${reason === r.v ? "activo" : ""}`}
+              aria-pressed={reason === r.v}
             >
               <b className="block">{r.title}</b>
               <span className="text-[12px] text-[color:var(--muted)]">{r.hint}</span>
+              <i className="crm-choice-go" aria-hidden="true">{reason === r.v ? "Elegido ✓" : "Elegir →"}</i>
             </button>
           ))}
         </div>
