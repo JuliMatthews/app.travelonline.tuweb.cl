@@ -4,6 +4,7 @@
 // 6 estados, alertas por días sin contacto (≥3 atención, ≥5 urgente), KPIs.
 require_once __DIR__ . '/inc/json.php';
 require_once __DIR__ . '/inc/auth.php';
+require_once __DIR__ . '/inc/channels.php';
 install_json_error_handlers();
 
 $session = require_auth();
@@ -594,7 +595,8 @@ if ($action === 'counts' && $method === 'GET') {
     $row = $mysqli->query('SELECT SUM(q.status = \'nueva\') AS nuevas,
             SUM(' . OPEN_SQL . ' AND ' . DAYS_SQL . ' >= ' . ALERT_URGENT_DAYS . ') AS urgentes
         FROM quote_requests q')->fetch_assoc();
-    json_ok(['nuevas' => (int) $row['nuevas'], 'urgentes' => (int) $row['urgentes'], 'cotVencidas' => $venc]);
+    json_ok(['nuevas' => (int) $row['nuevas'], 'urgentes' => (int) $row['urgentes'], 'cotVencidas' => $venc,
+        'canalesSilencio' => count(array_filter(channel_health($mysqli), fn($c) => $c['silent']))]);
 }
 
 if ($action === 'users' && $method === 'GET') {

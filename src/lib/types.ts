@@ -382,3 +382,17 @@ export type LoyaltyData = {
   summary: { customers: number; withPurchase: number; recurring: number };
   referrers: Referrer[];
 };
+
+export type ChannelHealth = {
+  channel: QuoteChannel;
+  total: number;
+  lastAt: string | null;
+  last7: number;
+  last30: number;
+  prev7: number;
+  silentDays: number | null;
+  alertDays: number;
+  series: number[];
+  silent: boolean;
+  neverReceived: boolean;
+};

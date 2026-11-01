@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Building2,
+  Radio,
   Heart,
   BarChart3,
 } from "lucide-react";
@@ -111,6 +112,13 @@ function Shell() {
             ? navBadge(counts.cotVencidas, `${counts.cotVencidas} cotización(es) vencida(s)`)
             : navBadge(counts.urgentes || counts.nuevas, counts.urgentes ? `${counts.urgentes} urgentes` : `${counts.nuevas} nuevas`)}
         </NavLink>
+        )}
+        {can(user, "quotes:view") && (
+          <NavLink to="/canales" className={item}>
+            <Radio size={17} />
+            <span>Canales</span>
+            {navBadge(counts.canalesSilencio, `${counts.canalesSilencio} canal(es) en silencio`)}
+          </NavLink>
         )}
         {can(user, "quotes:view") && (
           <NavLink to="/fidelizacion" className={item}>

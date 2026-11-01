@@ -20,6 +20,7 @@ import OperadoresPage from "@/pages/OperadoresPage";
 import ReportesPage from "@/pages/ReportesPage";
 import FidelizacionPage from "@/pages/FidelizacionPage";
 import NuevaSolicitudPage from "@/pages/NuevaSolicitudPage";
+import CanalesPage from "@/pages/CanalesPage";
 import UsuariosPage from "@/pages/UsuariosPage";
 import UsuarioNuevoPage from "@/pages/UsuarioNuevoPage";
 import UsuarioEditarPage from "@/pages/UsuarioEditarPage";
@@ -41,6 +42,7 @@ export default function App() {
         {/* Direcciones antiguas del panel (antes "Cotizaciones") */}
         <Route path="/cotizaciones" element={<Navigate to="/solicitudes" replace />} />
         <Route path="/cotizaciones/:id" element={<LegacyQuoteRedirect />} />
+        <Route path="/canales" element={<CanalesPage />} />
         <Route path="/fidelizacion" element={<FidelizacionPage />} />
         <Route path="/reportes" element={<ReportesPage />} />
         <Route path="/operadores" element={<OperadoresPage />} />
