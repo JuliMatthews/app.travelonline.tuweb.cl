@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Download } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Download, Plus } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { AlertDot, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
@@ -81,9 +81,16 @@ export default function SolicitudesPage() {
           <h1>Solicitudes</h1>
           <p>Registro maestro del proceso comercial · {rows ? `${total} registro${total === 1 ? "" : "s"}` : "cargando…"}</p>
         </div>
-        <a className="crm-btn" href={`/api-quotes.php?action=export&${query}`}>
-          <Download size={15} /> Exportar a Excel (CSV)
-        </a>
+        <div className="flex flex-wrap gap-2">
+          {can(user, "quotes:edit") && (
+            <Link className="crm-btn primary" to="/solicitudes/nueva">
+              <Plus size={15} /> Nueva solicitud
+            </Link>
+          )}
+          <a className="crm-btn" href={`/api-quotes.php?action=export&${query}`}>
+            <Download size={15} /> Exportar a Excel (CSV)
+          </a>
+        </div>
       </div>
 
       <div className="crm-filters">

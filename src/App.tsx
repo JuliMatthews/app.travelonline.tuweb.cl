@@ -19,6 +19,7 @@ import CotizacionPdfPage from "@/pages/CotizacionPdfPage";
 import OperadoresPage from "@/pages/OperadoresPage";
 import ReportesPage from "@/pages/ReportesPage";
 import FidelizacionPage from "@/pages/FidelizacionPage";
+import NuevaSolicitudPage from "@/pages/NuevaSolicitudPage";
 import UsuariosPage from "@/pages/UsuariosPage";
 import UsuarioNuevoPage from "@/pages/UsuarioNuevoPage";
 import UsuarioEditarPage from "@/pages/UsuarioEditarPage";
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/paquetes/nuevo" element={<PaqueteNuevoPage />} />
         <Route path="/paquetes/:id/editar" element={<PaqueteEditarPage />} />
         <Route path="/solicitudes" element={<SolicitudesPage />} />
+        <Route path="/solicitudes/nueva" element={<NuevaSolicitudPage />} />
         <Route path="/solicitudes/:id" element={<SolicitudPage />} />
         <Route path="/solicitudes/:id/cotizacion" element={<CotizacionPage />} />
         {/* Direcciones antiguas del panel (antes "Cotizaciones") */}

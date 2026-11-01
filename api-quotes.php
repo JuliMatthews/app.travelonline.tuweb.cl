@@ -381,6 +381,70 @@ if ($action === 'update' && $method === 'POST') {
     json_ok([]);
 }
 
+// Alta manual: llamada, WhatsApp, correo, etc. (formulario de recepción de Carolina, ahora dentro del CRM).
+if ($action === 'create' && $method === 'POST') {
+    require_auth('quotes:edit');
+    $in = json_body();
+    $userId = $session['user']['id'];
+    $reason = $in['reason'] ?? '';
+    $typeMap = ['viaje' => 'a_medida', 'reunion' => 'reunion', 'problema' => 'problema'];
+    if (!isset($typeMap[$reason])) json_error('Indica el motivo de la solicitud', 400);
+    $channel = $in['channel'] ?? '';
+    if (!in_array($channel, ['telefono', 'whatsapp', 'correo', 'instagram', 'referido', 'otro'], true)) json_error('Indica por qué canal llegó', 400);
+    $brand = in_array($in['brand'] ?? '', QUOTE_BRANDS, true) ? $in['brand'] : 'travel_online';
+    $name = mb_substr(str_field($in, 'name'), 0, 255);
+    $phone = mb_substr(str_field($in, 'phone'), 0, 64);
+    $email = mb_strtolower(str_field($in, 'email'));
+    if ($name === '') json_error('El nombre es obligatorio', 400);
+    if ($phone === '' && $email === '') json_error('Anota un teléfono o un correo para poder contactar', 400);
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) json_error('El correo no es válido', 400);
+
+    $text = fn(string $k, int $max = 500) => mb_substr(str_field($in, $k), 0, $max);
+    $adults = max(0, min(50, (int) ($in['adults'] ?? 1)));
+    $children = max(0, min(50, (int) ($in['children'] ?? 0)));
+    $details = array_filter([
+        'cuando' => $text('dates'), 'edades' => $text('ages'), 'programa' => $text('program'),
+        'tema' => $text('meetingTopic'), 'tieneCotizacion' => $text('hasQuote', 20), 'disponibilidad' => $text('availability'),
+        'agencia' => $text('agency'), 'reserva' => $text('booking'), 'viajando' => $text('travelling', 20),
+    ], fn($v) => $v !== '');
+    $comments = $reason === 'problema' ? $text('issue', 4000) : ($reason === 'reunion' ? $text('meetingTopic', 4000) : $text('notes', 4000));
+    if ($reason === 'problema' && $comments === '') json_error('Anota qué ocurrió', 400);
+    $dest = $text('destination', 190) ?: ($reason === 'viaje' ? null : ($reason === 'reunion' ? 'Reunión' : 'Problema con un viaje'));
+    $origin = $text('originCity', 120) ?: null;
+    $budget = isset($in['budgetClp']) && $in['budgetClp'] !== '' ? max(0, (int) $in['budgetClp']) : null;
+    $detailsJson = $details ? json_encode($details, JSON_UNESCAPED_UNICODE) : null;
+    $emailOrNull = $email !== '' ? $email : null;
+    $commentsOrNull = $comments !== '' ? $comments : null;
+    $assigned = ($in['assignedTo'] ?? '') ?: null;
+    $ref = strtolower(trim((string) ($in['referredByEmail'] ?? '')));
+    $refOrNull = $ref !== '' && filter_var($ref, FILTER_VALIDATE_EMAIL) ? $ref : null;
+    $rtype = $typeMap[$reason];
+
+    $stmt = $mysqli->prepare("INSERT INTO quote_requests (request_type, channel, brand, referred_by_email, destination_text, origin_city, budget_clp, adults, children,
+        selected_addons_json, passenger_name, passenger_email, passenger_phone, comments, details_json, assigned_to, received_by, last_contact_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, NOW())");
+    $stmt->bind_param('ssssssiiisssssss', $rtype, $channel, $brand, $refOrNull, $dest, $origin, $budget, $adults, $children,
+        $name, $emailOrNull, $phone, $commentsOrNull, $detailsJson, $assigned, $userId);
+    $stmt->execute();
+    $id = $stmt->insert_id;
+    $stmt->close();
+    $folio = sprintf('TOL-%s-%04d', (new DateTime('now', new DateTimeZone('America/Santiago')))->format('ymd'), $id % 10000);
+    $stmt = $mysqli->prepare('UPDATE quote_requests SET folio = ? WHERE id = ?');
+    $stmt->bind_param('si', $folio, $id);
+    $stmt->execute();
+    $stmt->close();
+    log_activity($mysqli, $id, $userId, 'sistema', 'Solicitud registrada por ' . $session['user']['name'] . ' · canal: ' . ($channel === 'telefono' ? 'teléfono' : $channel));
+    if ($assigned) {
+        $s = $mysqli->prepare('SELECT name FROM users WHERE id = ?');
+        $s->bind_param('s', $assigned);
+        $s->execute();
+        $an = $s->get_result()->fetch_assoc()['name'] ?? null;
+        $s->close();
+        if ($an) log_activity($mysqli, $id, $userId, 'asignacion', "Asignada a $an");
+    }
+    json_ok(['id' => $id, 'folio' => $folio]);
+}
+
 if ($action === 'note' && $method === 'POST') {
     require_auth('quotes:edit');
     $id = (int) ($_GET['id'] ?? 0);

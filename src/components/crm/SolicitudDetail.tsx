@@ -278,6 +278,24 @@ export function SolicitudDetail({
             <dd>{q.roomOptionLabel}</dd>
           </>
         )}
+        {(
+          [
+            ["programa", "Circuito o promoción"],
+            ["tema", "Tema de la reunión"],
+            ["tieneCotizacion", "¿Ya recibió cotización?"],
+            ["disponibilidad", "Disponibilidad"],
+            ["agencia", "Agencia de la reserva"],
+            ["reserva", "N° de reserva"],
+            ["viajando", "¿Está viajando?"],
+          ] as const
+        ).map(([k, label]) =>
+          typeof q.details[k] === "string" && q.details[k] ? (
+            <span key={k} style={{ display: "contents" }}>
+              <dt>{label}</dt>
+              <dd>{String(q.details[k])}</dd>
+            </span>
+          ) : null
+        )}
         {incluir && (
           <>
             <dt>Quiere incluir</dt>
