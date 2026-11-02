@@ -38,7 +38,8 @@ function version_row_to_json(array $r, int $number): array {
 const VERSION_SELECT = 'SELECT v.*, u.name AS created_by_name FROM quotation_versions v LEFT JOIN users u ON u.id = v.created_by';
 
 function load_quotation(mysqli $m, int $requestId): ?array {
-    $s = $m->prepare('SELECT id, request_id, number FROM quotations WHERE request_id = ?');
+    $s = $m->prepare('SELECT q.id, q.request_id, q.number, p.id AS package_id, p.status AS package_status
+        FROM quotations q LEFT JOIN packages p ON p.id = q.package_id WHERE q.request_id = ?');
     $s->bind_param('i', $requestId);
     $s->execute();
     $q = $s->get_result()->fetch_assoc();
@@ -51,7 +52,8 @@ function load_quotation(mysqli $m, int $requestId): ?array {
     $versions = [];
     while ($r = $res->fetch_assoc()) $versions[] = version_row_to_json($r, (int) $q['number']);
     $s->close();
-    return ['id' => (int) $q['id'], 'requestId' => (int) $q['request_id'], 'number' => (int) $q['number'], 'versions' => $versions];
+    return ['id' => (int) $q['id'], 'requestId' => (int) $q['request_id'], 'number' => (int) $q['number'], 'versions' => $versions,
+        'packageId' => $q['package_id'], 'packageStatus' => $q['package_status']];
 }
 
 // Limpia y valida las líneas; devuelve [líneas, total].
@@ -216,6 +218,64 @@ if ($action === 'new_version' && $method === 'POST') {
     $s->close();
     log_quote_activity($mysqli, $requestId, $userId, 'sistema', 'Nueva versión ' . version_label($quotation['number'], $next) . ' en borrador, comprometida para mañana' . ($reason ? " · $reason" : ''), $newVersionId);
     json_ok(['quotation' => load_quotation($mysqli, $requestId)]);
+}
+
+function slugify_es(string $t): string {
+    $t = strtr(mb_strtolower($t, 'UTF-8'), ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n']);
+    $t = trim(preg_replace('/[^a-z0-9]+/', '-', $t), '-');
+    return mb_substr($t ?: 'paquete', 0, 150);
+}
+
+// Copia una versión al catálogo como paquete en BORRADOR (el sitio público solo muestra los publicados).
+// Se copia lo que sirve para reutilizar: título, incluye/no incluye e itinerario por días. No se copian
+// precio, pasajeros, fechas ni vuelos: son del cliente, no del programa.
+if ($action === 'to_package' && $method === 'POST') {
+    require_auth('packages:edit');
+    $v = find_version($mysqli, (int) ($_GET['versionId'] ?? 0));
+    $quotation = load_quotation($mysqli, (int) $v['request_id']);
+    if ($quotation['packageId']) json_error('Esta cotización ya se guardó como paquete', 409);
+
+    $title = trim((string) $v['title']) ?: 'Programa ' . $quotation['number'];
+    $days = json_decode($v['itinerary_json'] ?? '[]', true) ?: [];
+    $slug = slugify_es($title);
+    for ($i = 2; ; $i++) {
+        $s = $mysqli->prepare('SELECT 1 FROM packages WHERE slug = ?');
+        $s->bind_param('s', $slug);
+        $s->execute();
+        $taken = $s->get_result()->num_rows > 0;
+        $s->close();
+        if (!$taken) break;
+        $slug = slugify_es($title) . "-$i";
+    }
+
+    $mysqli->begin_transaction();
+    $pid = new_uuid();
+    $subtitle = $v['subtitle'] ?: null;
+    $nDays = count($days) ?: null;
+    $nNights = $nDays ? max(0, $nDays - 1) : null;
+    $inc = $v['includes_text'] ?: null;
+    $exc = $v['excludes_text'] ?: null;
+    $s = $mysqli->prepare("INSERT INTO packages (id, slug, title, subtitle, duration_days, duration_nights, package_type, price_display_mode,
+        price_unit, included, not_included, status, created_by, updated_by) VALUES (?,?,?,?,?,?, 'circuito', 'bajo_consulta', 'per_person', ?,?, 'draft', ?, ?)");
+    $s->bind_param('ssssiissss', $pid, $slug, $title, $subtitle, $nDays, $nNights, $inc, $exc, $userId, $userId);
+    $s->execute();
+    $s->close();
+    foreach ($days as $i => $d) {
+        $did = new_uuid();
+        $num = $i + 1;
+        $desc = (string) $d['detail'];
+        $s = $mysqli->prepare('INSERT INTO package_itinerary_days (id, package_id, day_number, title, description, sort_order) VALUES (?,?,?,?,?,?)');
+        $s->bind_param('ssissi', $did, $pid, $num, $d['title'], $desc, $i);
+        $s->execute();
+        $s->close();
+    }
+    $s = $mysqli->prepare('UPDATE quotations SET package_id = ? WHERE id = ?');
+    $s->bind_param('si', $pid, $quotation['id']);
+    $s->execute();
+    $s->close();
+    log_quote_activity($mysqli, (int) $v['request_id'], $userId, 'sistema', 'Cotización ' . version_label((int) $v['number'], (int) $v['version']) . " guardada como paquete en borrador: $title", (int) $v['id']);
+    $mysqli->commit();
+    json_ok(['packageId' => $pid, 'quotation' => load_quotation($mysqli, (int) $v['request_id'])]);
 }
 
 // Congela la versión y mueve la solicitud a "Cotización enviada".

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
@@ -18,6 +18,8 @@ export default function CotizacionPage() {
   const { user } = useAuth();
   const { reload } = useCrm();
   const canEdit = can(user, "quotes:edit");
+  const canPackage = can(user, "packages:edit");
+  const navigate = useNavigate();
   const [quotation, setQuotation] = useState<Quotation | null | undefined>(undefined);
   const [selected, setSelected] = useState<number | null>(null);
   const [form, setForm] = useState<QuotationVersion | null>(null);
@@ -98,9 +100,34 @@ export default function CotizacionPage() {
           <h1>Cotización N° {quotation.number}</h1>
           <p>Versión {form.label} · {form.status === "borrador" ? "borrador (editable)" : `enviada ${fechaHora(form.sentAt)} · congelada`}</p>
         </div>
-        <a className="crm-btn" href={`/cotizacion/${form.id}/pdf`} target="_blank" rel="noreferrer">
-          Ver / guardar PDF
-        </a>
+        <div className="flex flex-wrap gap-2">
+          {canPackage && canEdit && (
+            quotation.packageId ? (
+              <Link className="crm-btn" to={`/paquetes/${quotation.packageId}/editar`}>
+                Ver el paquete ({quotation.packageStatus === "published" ? "publicado" : quotation.packageStatus === "archived" ? "archivado" : "borrador"})
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className="crm-btn"
+                disabled={busy}
+                onClick={async () => {
+                  if (!window.confirm("Se creará un paquete en BORRADOR con el título, lo que incluye / no incluye y el itinerario de esta versión. No se publica en el sitio hasta que lo cambies a Publicado. ¿Continuar?")) return;
+                  setBusy(true);
+                  const res = await apiPost<{ packageId: string; quotation: Quotation }>(`/api-quotations.php?action=to_package&versionId=${form.id}`, {});
+                  setBusy(false);
+                  if (!res.ok) return setMsg({ ok: false, text: res.error });
+                  navigate(`/paquetes/${res.packageId}/editar`);
+                }}
+              >
+                Guardar como paquete
+              </button>
+            )
+          )}
+          <a className="crm-btn" href={`/cotizacion/${form.id}/pdf`} target="_blank" rel="noreferrer">
+            Ver / guardar PDF
+          </a>
+        </div>
       </div>
 
       {msg && (

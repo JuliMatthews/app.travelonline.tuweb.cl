@@ -314,7 +314,14 @@ export type QuotationVersion = {
   createdByName: string | null;
 };
 
-export type Quotation = { id: number; requestId: number; number: number; versions: QuotationVersion[] };
+export type Quotation = {
+  id: number;
+  requestId: number;
+  number: number;
+  versions: QuotationVersion[];
+  packageId: string | null;
+  packageStatus: "draft" | "published" | "archived" | null;
+};
 
 export type QuotationPrint = {
   reviewTo: string | null;
