@@ -3,9 +3,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Download, Plus } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
+import { useCrm } from "@/contexts/CrmContext";
 import { AlertDot, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
 import { SolicitudDetail } from "@/components/crm/SolicitudDetail";
-import { BRAND_LABEL, BRAND_ORDER, plazoCot, CHANNEL_LABEL, CHANNEL_ORDER, STATUS_LABEL, STATUS_ORDER, clp, fecha } from "@/lib/crm";
+import { BRAND_LABEL, BRAND_ORDER, horasTxt, plazoCot, CHANNEL_LABEL, CHANNEL_ORDER, STATUS_LABEL, STATUS_ORDER, clp, fecha } from "@/lib/crm";
 import type { QuoteSummary } from "@/lib/types";
 
 type QuoteUser = { id: string; name: string };
@@ -15,6 +16,7 @@ const FILTERS = ["q", "status", "brand", "channel", "assignedTo", "alert", "due"
 export default function SolicitudesPage() {
   const [params, setParams] = useSearchParams();
   const { user } = useAuth();
+  const { alertCfg } = useCrm();
   const full = can(user, "quotes:view"); // el rol "reportes" solo ve la tabla de ventas cerradas
   const [rows, setRows] = useState<QuoteSummary[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -144,8 +146,8 @@ export default function SolicitudesPage() {
         <select className="crm-field" value={params.get("alert") ?? ""} onChange={(e) => set("alert", e.target.value)} aria-label="Seguimiento">
           <option value="">Toda la cartera</option>
           <option value="activas">Solo activas</option>
-          <option value="urgente">🔴 Urgentes (5+ días)</option>
-          <option value="atencion">🟡 Atención (3-4 días)</option>
+          <option value="urgente">🔴 Urgentes ({horasTxt(alertCfg.urgentHours)}+ sin contacto)</option>
+          <option value="atencion">🟠 Atención ({horasTxt(alertCfg.warnHours)} a {horasTxt(alertCfg.urgentHours)})</option>
           <option value="aldia">🟢 Al día</option>
         </select>
         <select className="crm-field" value={params.get("sort") ?? ""} onChange={(e) => set("sort", e.target.value)} aria-label="Orden">
@@ -174,7 +176,7 @@ export default function SolicitudesPage() {
           <button key={r.id} type="button" className="crm-card" onClick={() => full && set("id", String(r.id))}>
             <div className="l1">
               <b className="truncate">{r.passengerName}</b>
-              <AlertDot alert={r.alert} days={r.daysSinceContact} />
+              <AlertDot alert={r.alert} hours={r.hoursSinceContact} />
             </div>
             <div className="l2">
               {r.folio ?? `#${r.id}`} · {fecha(r.createdAt)} · {r.destination ?? "—"} · {r.adults + r.children} pax
@@ -245,7 +247,7 @@ export default function SolicitudesPage() {
                   )}
                 </td>
                 <td className="text-center">
-                  <AlertDot alert={r.alert} days={r.daysSinceContact} />
+                  <AlertDot alert={r.alert} hours={r.hoursSinceContact} />
                 </td>
               </tr>
             ))}

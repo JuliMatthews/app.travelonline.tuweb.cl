@@ -6,7 +6,7 @@ import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
 import { AlertDot, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
 import {
-  ALERT_LABEL,
+  alertLabel,
   BRAND_LABEL,
   BRAND_ORDER,
   CHANNEL_LABEL,
@@ -19,7 +19,7 @@ import {
   plazoCot,
   fechaHora,
   fechaLarga,
-  haceDias,
+  haceHoras,
   pax,
   statusVar,
 } from "@/lib/crm";
@@ -40,7 +40,7 @@ export function SolicitudDetail({
   onChanged?: () => void;
 }) {
   const { user } = useAuth();
-  const { reload } = useCrm();
+  const { reload, alertCfg } = useCrm();
   const canEdit = can(user, "quotes:edit");
   const canMessage = can(user, "messages:send");
   const [q, setQ] = useState<QuoteDetail | null>(null);
@@ -166,7 +166,7 @@ export function SolicitudDetail({
         <ChannelBadge channel={q.channel} />
         {q.travelType && <span className="crm-badge" style={{ "--c": "var(--muted)" } as React.CSSProperties}>{q.travelType}</span>}
         <span className="crm-badge inline-flex items-center gap-1.5" style={{ "--c": "var(--muted)" } as React.CSSProperties}>
-          <AlertDot alert={q.alert} /> {q.alert === "cerrado" ? "Cerrada" : `último contacto ${haceDias(q.daysSinceContact)}`}
+          <AlertDot alert={q.alert} /> {q.alert === "cerrado" ? "Cerrada" : `último contacto ${haceHoras(q.hoursSinceContact)}`}
         </span>
       </div>
 
@@ -349,7 +349,7 @@ export function SolicitudDetail({
         <dd>{fechaLarga(q.quotedAt)}</dd>
         <dt>Último contacto</dt>
         <dd>
-          {fechaLarga(q.lastContactAt)} <span className="text-[color:var(--muted)]">· {ALERT_LABEL[q.alert]}</span>
+          {fechaLarga(q.lastContactAt)} <span className="text-[color:var(--muted)]">· {alertLabel(q.alert, alertCfg)}</span>
         </dd>
         {q.status === "venta_cerrada" && (
           <>

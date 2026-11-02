@@ -1,4 +1,5 @@
-import { ALERT_LABEL, BRAND_LABEL, CHANNEL_LABEL, STATUS_LABEL, brandVar, channelVar, statusVar } from "@/lib/crm";
+import { useCrm } from "@/contexts/CrmContext";
+import { BRAND_LABEL, CHANNEL_LABEL, STATUS_LABEL, alertLabel, brandVar, channelVar, haceHoras, statusVar } from "@/lib/crm";
 import type { QuoteAlert, QuoteBrand, QuoteChannel, QuoteStatus } from "@/lib/types";
 
 export function StatusBadge({ status }: { status: QuoteStatus }) {
@@ -25,8 +26,9 @@ export function BrandBadge({ brand }: { brand: QuoteBrand }) {
   );
 }
 
-export function AlertDot({ alert, days }: { alert: QuoteAlert; days?: number }) {
-  const title = ALERT_LABEL[alert] + (days != null && alert !== "cerrado" ? ` (${days} días)` : "");
+export function AlertDot({ alert, hours }: { alert: QuoteAlert; hours?: number }) {
+  const { alertCfg } = useCrm();
+  const title = alertLabel(alert, alertCfg) + (hours != null && alert !== "cerrado" ? ` (último contacto ${haceHoras(hours)})` : "");
   return <span className={`crm-dot ${alert}`} title={title} aria-label={title} role="img" />;
 }
 

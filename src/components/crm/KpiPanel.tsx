@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCrm } from "@/contexts/CrmContext";
-import { clp, clpShort, pct } from "@/lib/crm";
+import { clp, clpShort, horasTxt, pct } from "@/lib/crm";
 
 const KEY = "to_admin_kpi_panel";
 
 // Panel lateral "Seguimiento de KPIs" (CRM de Francisco, pantalla 10).
 // Comisiones y descuentos llegan en la fase 5 (operadores/descuentos).
 export function KpiPanel() {
-  const { stats } = useCrm();
+  const { stats, alertCfg } = useCrm();
   const navigate = useNavigate();
   const [hidden, setHidden] = useState(() => localStorage.getItem(KEY) === "1");
   const toggle = () =>
@@ -81,7 +81,7 @@ export function KpiPanel() {
           <h3>Alertas</h3>
           <button type="button" className="alerta" onClick={() => navigate("/solicitudes?alert=urgente")}>
             <b>{stats.urgent}</b>
-            solicitudes con 5+ días sin contacto · ver →
+            solicitudes con {horasTxt(alertCfg.urgentHours)}+ sin contacto · ver →
           </button>
         </>
       )}

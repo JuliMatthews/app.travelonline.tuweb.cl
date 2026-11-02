@@ -148,6 +148,7 @@ export type QuoteSummary = {
   assignedToName: string | null;
   lastContactAt: string | null;
   daysSinceContact: number;
+  hoursSinceContact: number;
   alert: QuoteAlert;
   quoteDue: string | null;
   quoteOverdue: boolean;
@@ -188,7 +189,10 @@ export type QuoteDetail = QuoteSummary & {
 
 export type GroupCount = { key: string; count: number };
 
+export type AlertCfg = { warnHours: number; urgentHours: number };
+
 export type QuoteStats = {
+  alert: AlertCfg;
   total: number;
   quoted: number;
   responded: number;

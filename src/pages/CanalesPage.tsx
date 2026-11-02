@@ -1,17 +1,32 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useCrm } from "@/contexts/CrmContext";
-import { CHANNEL_LABEL, channelVar, fechaHora, haceDias } from "@/lib/crm";
+import { CHANNEL_LABEL, channelVar, fechaHora, haceDias, horasTxt } from "@/lib/crm";
 import type { ChannelHealth } from "@/lib/types";
 
 // Salud de los canales de entrada: si un canal deja de recibir solicitudes, se nota aquí.
 // Mide lo que ya llegó al CRM; la lectura automática de la casilla Info llega con el hosting nuevo.
 export default function CanalesPage() {
-  const { reload } = useCrm();
+  const { reload, alertCfg } = useCrm();
   const [channels, setChannels] = useState<ChannelHealth[] | null>(null);
   const [canEdit, setCanEdit] = useState(false);
   const [days, setDays] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [warnH, setWarnH] = useState("");
+  const [urgentH, setUrgentH] = useState("");
+  const [alertMsg, setAlertMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    setWarnH(String(alertCfg.warnHours));
+    setUrgentH(String(alertCfg.urgentHours));
+  }, [alertCfg]);
+
+  async function saveAlerts() {
+    const res = await apiPost("/api-quotes.php?action=alert_settings", { warnHours: Number(warnH) || 0, urgentHours: Number(urgentH) || 0 });
+    if (!res.ok) return setAlertMsg({ ok: false, text: res.error });
+    reload();
+    setAlertMsg({ ok: true, text: "Tiempos de seguimiento guardados." });
+  }
 
   const apply = useCallback((list: ChannelHealth[]) => {
     setChannels(list);
@@ -113,6 +128,33 @@ export default function CanalesPage() {
             </div>
           );
         })}
+      </div>
+
+      <div className="crm-panel mt-6">
+        <h2>Tiempos de alerta del seguimiento</h2>
+        <p className="mt-1 text-[13px] text-[color:var(--muted)]">
+          Cada solicitud abierta cambia de color según las horas que lleva sin contacto con el cliente. Se ve en el punto de color de la lista de Solicitudes y en el Tablero.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px] font-semibold">
+          <span className="inline-flex items-center gap-2"><span className="crm-dot aldia" /> Al día: menos de {horasTxt(alertCfg.warnHours)}</span>
+          {canEdit ? (
+            <>
+              <label className="inline-flex items-center gap-2"><span className="crm-dot atencion" /> Naranja desde
+                <input className="crm-field" style={{ width: 80 }} inputMode="numeric" value={warnH} onChange={(e) => setWarnH(e.target.value.replace(/\D/g, ""))} /> horas
+              </label>
+              <label className="inline-flex items-center gap-2"><span className="crm-dot urgente" /> Rojo desde
+                <input className="crm-field" style={{ width: 80 }} inputMode="numeric" value={urgentH} onChange={(e) => setUrgentH(e.target.value.replace(/\D/g, ""))} /> horas
+              </label>
+              <button type="button" className="crm-btn primary" onClick={saveAlerts}>Guardar tiempos</button>
+            </>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-2"><span className="crm-dot atencion" /> Naranja desde {horasTxt(alertCfg.warnHours)}</span>
+              <span className="inline-flex items-center gap-2"><span className="crm-dot urgente" /> Rojo desde {horasTxt(alertCfg.urgentHours)}</span>
+            </>
+          )}
+        </div>
+        {alertMsg && <p className={`mt-2 text-[13px] ${alertMsg.ok ? "text-[color:var(--ok)]" : "text-[color:var(--risk)]"}`}>{alertMsg.text}</p>}
       </div>
 
       {canEdit && channels && (

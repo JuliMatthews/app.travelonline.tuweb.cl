@@ -1,7 +1,7 @@
 <?php
 // Solicitudes (CRM) — cotizaciones de paquetes, viajes a medida, llamadas, etc.
 // Reglas de negocio tomadas del CRM de Francisco (03-reglas-de-negocio.md):
-// 6 estados, alertas por días sin contacto (≥3 atención, ≥5 urgente), KPIs.
+// 6 estados, alertas por horas sin contacto (por defecto 24 h atención/naranja, 48 h urgente/rojo; editables), KPIs.
 require_once __DIR__ . '/inc/json.php';
 require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/channels.php';
@@ -23,17 +23,31 @@ const STATUS_LABELS = [
     'nueva' => 'Nueva', 'cotizacion_enviada' => 'Cotización enviada', 'en_seguimiento' => 'En seguimiento',
     'respondido' => 'Respondido', 'venta_cerrada' => 'Venta cerrada', 'no_interesado' => 'No interesado',
 ];
-const ALERT_URGENT_DAYS = 5;
-const ALERT_WARN_DAYS = 3;
+const ALERT_DEFAULT_WARN_HOURS = 24;
+const ALERT_DEFAULT_URGENT_HOURS = 48;
 
-// Días sin contacto calculados en SQL, para filtrar y ordenar por urgencia.
+// Umbrales de alerta en horas, editables en crm_settings (alert_warn_hours / alert_urgent_hours).
+function alert_settings(mysqli $m): array {
+    $v = ['alert_warn_hours' => ALERT_DEFAULT_WARN_HOURS, 'alert_urgent_hours' => ALERT_DEFAULT_URGENT_HOURS];
+    $res = $m->query("SELECT k, v FROM crm_settings WHERE k IN ('alert_warn_hours','alert_urgent_hours')");
+    while ($r = $res->fetch_assoc()) $v[$r['k']] = (int) $r['v'];
+    $warn = max(1, min(720, $v['alert_warn_hours']));
+    $urgent = max($warn + 1, min(2160, $v['alert_urgent_hours']));
+    return ['warnHours' => $warn, 'urgentHours' => $urgent];
+}
+$alertCfg = alert_settings($mysqli);
+define('ALERT_WARN_HOURS', $alertCfg['warnHours']);
+define('ALERT_URGENT_HOURS', $alertCfg['urgentHours']);
+
+// Tiempo sin contacto calculado en SQL, para filtrar y ordenar por urgencia.
 const DAYS_SQL = 'TIMESTAMPDIFF(DAY, COALESCE(q.last_contact_at, q.created_at), NOW())';
+const HOURS_SQL = 'TIMESTAMPDIFF(HOUR, COALESCE(q.last_contact_at, q.created_at), NOW())';
 const OPEN_SQL = "q.status IN ('nueva','cotizacion_enviada','en_seguimiento','respondido')";
 
-function alert_level(string $status, int $days): string {
+function alert_level(string $status, int $hours): string {
     if (!in_array($status, OPEN_STATUSES, true)) return 'cerrado';
-    if ($days >= ALERT_URGENT_DAYS) return 'urgente';
-    if ($days >= ALERT_WARN_DAYS) return 'atencion';
+    if ($hours >= ALERT_URGENT_HOURS) return 'urgente';
+    if ($hours >= ALERT_WARN_HOURS) return 'atencion';
     return 'aldia';
 }
 
@@ -42,6 +56,7 @@ function nullable_int($v): ?int { return $v !== null ? (int) $v : null; }
 
 function quote_summary(array $r): array {
     $days = (int) $r['days_since_contact'];
+    $hours = (int) $r['hours_since_contact'];
     $full = can(current_session()['user'] ?? null, 'quotes:view');
     return [
         'id' => (int) $r['id'],
@@ -69,7 +84,8 @@ function quote_summary(array $r): array {
         'assignedToName' => $r['assigned_to_name'],
         'lastContactAt' => $r['last_contact_at'],
         'daysSinceContact' => $days,
-        'alert' => alert_level($r['status'], $days),
+        'hoursSinceContact' => $hours,
+        'alert' => alert_level($r['status'], $hours),
         'quoteDue' => $r['quote_due'] ?? null,
         'quoteOverdue' => ($r['quote_due'] ?? null) !== null && $r['quote_due'] < date('Y-m-d'),
     ];
@@ -78,7 +94,7 @@ function quote_summary(array $r): array {
 const SUMMARY_SELECT = 'SELECT q.id, q.folio, q.request_type, q.channel, q.brand, q.created_at, q.package_slug, q.package_title,
         q.destination_text, q.origin_city, q.travel_type, q.adults, q.children, q.passenger_name, q.passenger_email,
         q.passenger_phone, q.total_clp, q.budget_clp, q.budget_range, q.sale_amount_clp, q.status, q.assigned_to,
-        q.last_contact_at, u.name AS assigned_to_name, ' . DAYS_SQL . ' AS days_since_contact, pq.quote_due
+        q.last_contact_at, u.name AS assigned_to_name, ' . DAYS_SQL . ' AS days_since_contact, ' . HOURS_SQL . ' AS hours_since_contact, pq.quote_due
      FROM quote_requests q LEFT JOIN users u ON u.id = q.assigned_to
      LEFT JOIN (SELECT qn.request_id, MIN(qv.promised_at) AS quote_due FROM quotations qn
         JOIN quotation_versions qv ON qv.quotation_id = qn.id AND qv.status = \'borrador\' AND qv.promised_at IS NOT NULL
@@ -122,9 +138,9 @@ function build_filters(array $session): array {
         $types .= 's';
     }
     $alert = $_GET['alert'] ?? '';
-    if ($alert === 'urgente') $where[] = OPEN_SQL . ' AND ' . DAYS_SQL . ' >= ' . ALERT_URGENT_DAYS;
-    elseif ($alert === 'atencion') $where[] = OPEN_SQL . ' AND ' . DAYS_SQL . ' >= ' . ALERT_WARN_DAYS . ' AND ' . DAYS_SQL . ' < ' . ALERT_URGENT_DAYS;
-    elseif ($alert === 'aldia') $where[] = OPEN_SQL . ' AND ' . DAYS_SQL . ' < ' . ALERT_WARN_DAYS;
+    if ($alert === 'urgente') $where[] = OPEN_SQL . ' AND ' . HOURS_SQL . ' >= ' . ALERT_URGENT_HOURS;
+    elseif ($alert === 'atencion') $where[] = OPEN_SQL . ' AND ' . HOURS_SQL . ' >= ' . ALERT_WARN_HOURS . ' AND ' . HOURS_SQL . ' < ' . ALERT_URGENT_HOURS;
+    elseif ($alert === 'aldia') $where[] = OPEN_SQL . ' AND ' . HOURS_SQL . ' < ' . ALERT_WARN_HOURS;
     elseif ($alert === 'activas') $where[] = OPEN_SQL;
 
     // Cotización comprometida pendiente (borrador con plazo): "pendientes" = todas, "vencidas" = plazo ya pasado.
@@ -143,7 +159,7 @@ function build_filters(array $session): array {
 
     $order = match ($_GET['sort'] ?? 'recientes') {
         'antiguas' => 'q.created_at ASC',
-        'urgencia' => '(' . OPEN_SQL . ') DESC, days_since_contact DESC',
+        'urgencia' => '(' . OPEN_SQL . ') DESC, hours_since_contact DESC',
         'monto' => 'COALESCE(q.sale_amount_clp, q.total_clp, q.budget_clp, 0) DESC',
         default => 'q.created_at DESC',
     };
@@ -231,7 +247,7 @@ function loyalty_for(mysqli $m, array $row): array {
 if ($action === 'get' && $method === 'GET') {
     $id = (int) ($_GET['id'] ?? 0);
     $stmt = $mysqli->prepare(
-        'SELECT q.*, u.name AS assigned_to_name, ' . DAYS_SQL . ' AS days_since_contact
+        'SELECT q.*, u.name AS assigned_to_name, ' . DAYS_SQL . ' AS days_since_contact, ' . HOURS_SQL . ' AS hours_since_contact
          FROM quote_requests q LEFT JOIN users u ON u.id = q.assigned_to WHERE q.id = ?'
     );
     $stmt->bind_param('i', $id);
@@ -526,8 +542,8 @@ if ($action === 'stats' && $method === 'GET') {
             SUM(status = \'venta_cerrada\') AS ventas,
             SUM(status = \'en_seguimiento\') AS seguimiento,
             SUM(' . OPEN_SQL . ') AS activas,
-            SUM(' . OPEN_SQL . ' AND ' . DAYS_SQL . ' >= ' . ALERT_URGENT_DAYS . ') AS urgentes,
-            SUM(' . OPEN_SQL . ' AND ' . DAYS_SQL . ' >= ' . ALERT_WARN_DAYS . ' AND ' . DAYS_SQL . ' < ' . ALERT_URGENT_DAYS . ') AS atencion,
+            SUM(' . OPEN_SQL . ' AND ' . HOURS_SQL . ' >= ' . ALERT_URGENT_HOURS . ') AS urgentes,
+            SUM(' . OPEN_SQL . ' AND ' . HOURS_SQL . ' >= ' . ALERT_WARN_HOURS . ' AND ' . HOURS_SQL . ' < ' . ALERT_URGENT_HOURS . ') AS atencion,
             COALESCE(SUM(CASE WHEN status = \'venta_cerrada\' THEN sale_amount_clp END), 0) AS ingreso_real,
             COALESCE(SUM(CASE WHEN status IN (\'cotizacion_enviada\',\'en_seguimiento\',\'respondido\') THEN COALESCE(total_clp, budget_clp) END), 0) AS ingreso_potencial,
             AVG(CASE WHEN quoted_at IS NOT NULL THEN TIMESTAMPDIFF(HOUR, created_at, quoted_at) / 24 END) AS dias_respuesta
@@ -563,6 +579,7 @@ if ($action === 'stats' && $method === 'GET') {
         'active' => (int) $k['activas'],
         'urgent' => (int) $k['urgentes'],
         'warning' => (int) $k['atencion'],
+        'alert' => $alertCfg,
         'revenue' => (int) $k['ingreso_real'],
         'potential' => (int) $k['ingreso_potencial'],
         'avgResponseDays' => $k['dias_respuesta'] !== null ? round((float) $k['dias_respuesta'], 1) : null,
@@ -593,10 +610,26 @@ if ($action === 'counts' && $method === 'GET') {
     $venc = (int) $mysqli->query('SELECT COUNT(DISTINCT qn.request_id) AS n FROM quotations qn JOIN quotation_versions qv ON qv.quotation_id = qn.id
         WHERE qv.status = \'borrador\' AND qv.promised_at < CURDATE()')->fetch_assoc()['n'];
     $row = $mysqli->query('SELECT SUM(q.status = \'nueva\') AS nuevas,
-            SUM(' . OPEN_SQL . ' AND ' . DAYS_SQL . ' >= ' . ALERT_URGENT_DAYS . ') AS urgentes
+            SUM(' . OPEN_SQL . ' AND ' . HOURS_SQL . ' >= ' . ALERT_URGENT_HOURS . ') AS urgentes
         FROM quote_requests q')->fetch_assoc();
-    json_ok(['nuevas' => (int) $row['nuevas'], 'urgentes' => (int) $row['urgentes'], 'cotVencidas' => $venc,
+    json_ok(['nuevas' => (int) $row['nuevas'], 'urgentes' => (int) $row['urgentes'], 'cotVencidas' => $venc, 'alert' => $alertCfg,
         'canalesSilencio' => count(array_filter(channel_health($mysqli), fn($c) => $c['silent']))]);
+}
+
+if ($action === 'alert_settings' && $method === 'POST') {
+    require_auth('settings:manage');
+    $in = json_body();
+    $warn = (int) ($in['warnHours'] ?? 0);
+    $urgent = (int) ($in['urgentHours'] ?? 0);
+    if ($warn < 1 || $warn > 720) json_error('El aviso naranja debe estar entre 1 y 720 horas', 400);
+    if ($urgent <= $warn || $urgent > 2160) json_error('El aviso rojo debe ser mayor que el naranja (máximo 2160 horas)', 400);
+    $s = $mysqli->prepare('INSERT INTO crm_settings (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)');
+    foreach (['alert_warn_hours' => $warn, 'alert_urgent_hours' => $urgent] as $k => $n) {
+        $v = (string) $n;
+        $s->bind_param('ss', $k, $v);
+        $s->execute();
+    }
+    json_ok(['alert' => ['warnHours' => $warn, 'urgentHours' => $urgent]]);
 }
 
 if ($action === 'users' && $method === 'GET') {

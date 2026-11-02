@@ -1,6 +1,6 @@
 // Catálogos y formatos del CRM — mismos estados, canales y formato chileno
 // que el CRM de Francisco (03-reglas-de-negocio.md, sección 10).
-import type { QuoteAlert, QuoteBrand, QuoteChannel, QuoteStatus } from "@/lib/types";
+import type { AlertCfg, QuoteAlert, QuoteBrand, QuoteChannel, QuoteStatus } from "@/lib/types";
 
 export const STATUS_ORDER: QuoteStatus[] = [
   "nueva",
@@ -56,12 +56,25 @@ export const REQUEST_TYPE_LABEL: Record<string, string> = {
   problema: "Problema con un viaje",
 };
 
-export const ALERT_LABEL: Record<QuoteAlert, string> = {
-  urgente: "Urgente · 5+ días sin contacto",
-  atencion: "Atención · 3+ días sin contacto",
-  aldia: "Al día",
-  cerrado: "Cerrada",
-};
+export const ALERT_DEFAULT: AlertCfg = { warnHours: 24, urgentHours: 48 };
+
+/** "24 h" / "2 días" / "36 h": horas redondas en días cuando son múltiplo de 24 y ≥ 48. */
+export function horasTxt(h: number): string {
+  return h >= 48 && h % 24 === 0 ? `${h / 24} días` : `${h} h`;
+}
+
+export function alertLabel(a: QuoteAlert, cfg: AlertCfg = ALERT_DEFAULT): string {
+  if (a === "urgente") return `Urgente · ${horasTxt(cfg.urgentHours)}+ sin contacto`;
+  if (a === "atencion") return `Atención · ${horasTxt(cfg.warnHours)}+ sin contacto`;
+  return a === "aldia" ? "Al día" : "Cerrada";
+}
+
+/** Tiempo transcurrido legible: "hace 5 h", "ayer", "hace 3 días". */
+export function haceHoras(h: number): string {
+  if (h < 1) return "hace menos de 1 h";
+  if (h < 24) return `hace ${h} h`;
+  return haceDias(Math.floor(h / 24));
+}
 
 /** Texto del plazo de una cotización pendiente: "vencida hace 2 días", "para hoy", "para mañana", "para el 05-11-2026". */
 export function plazoCot(due: string | null | undefined): { text: string; late: boolean } | null {

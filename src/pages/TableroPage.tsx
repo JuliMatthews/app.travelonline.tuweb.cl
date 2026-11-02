@@ -2,12 +2,12 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
 import { HBar, Kpi } from "@/components/crm/ui";
-import { CHANNEL_LABEL, STATUS_LABEL, STATUS_ORDER, channelVar, clpShort, fechaLarga, pct, statusVar } from "@/lib/crm";
+import { CHANNEL_LABEL, STATUS_LABEL, STATUS_ORDER, channelVar, clpShort, fechaLarga, horasTxt, pct, statusVar } from "@/lib/crm";
 import type { QuoteChannel, QuoteStatus } from "@/lib/types";
 
 // Tablero de control — pantalla 2 del CRM de Francisco, con datos reales.
 export default function TableroPage() {
-  const { stats } = useCrm();
+  const { stats, alertCfg } = useCrm();
   const { user } = useAuth();
   const navigate = useNavigate();
   const go = (qs: string) => navigate(`/solicitudes${qs ? `?${qs}` : ""}`);
@@ -51,7 +51,7 @@ export default function TableroPage() {
         <Kpi tone="ok" label="Ventas cerradas" value={s.sales} note={`Ticket promedio ${clpShort(s.avgTicket)}`} onClick={() => go("status=venta_cerrada")} />
         <Kpi tone="ok" label="Tasa de conversión" value={pct(s.conversion)} note={`Meta 25% · ${pct(s.conversionQuoted)} sobre cotizadas`} />
         <Kpi label="En seguimiento" value={s.followUp} note={`${s.active} solicitudes activas en total`} onClick={() => go("status=en_seguimiento")} />
-        <Kpi tone="riesgo" label="Urgentes (5+ días)" value={s.urgent} note="Sin contacto registrado" onClick={() => go("alert=urgente&sort=urgencia")} />
+        <Kpi tone="riesgo" label={`Urgentes (${horasTxt(alertCfg.urgentHours)}+)`} value={s.urgent} note="Sin contacto registrado" onClick={() => go("alert=urgente&sort=urgencia")} />
         <Kpi tone="mar" label="Ingreso por ventas" value={clpShort(s.revenue)} note="Ventas cerradas" />
         <Kpi label="Ingreso potencial" value={clpShort(s.potential)} note="Cotizaciones aún abiertas" onClick={() => go("alert=activas")} />
       </div>
