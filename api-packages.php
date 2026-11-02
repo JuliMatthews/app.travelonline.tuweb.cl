@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/inc/json.php';
 require_once __DIR__ . '/inc/auth.php';
+require_once __DIR__ . '/inc/package_gaps.php';
 install_json_error_handlers();
 
 $session = require_auth('packages:view');
@@ -30,12 +31,14 @@ if ($action === 'list' && $method === 'GET') {
     $res = $mysqli->query(
         'SELECT p.id, p.slug, p.title, p.subtitle, p.package_type, p.status,
                 p.price_display_mode, p.price_from_clp, p.is_featured, p.show_in_promociones, p.updated_at,
+                p.content, p.duration_days, p.duration_nights, p.included, p.not_included,
+                (SELECT COUNT(*) FROM package_itinerary_days d WHERE d.package_id = p.id) AS itin_days,
                 r.id AS region_id, r.slug AS region_slug, r.name AS region_name
          FROM packages p LEFT JOIN regions r ON r.id = p.region_id
          ORDER BY p.title'
     );
     $rows = [];
-    while ($row = $res->fetch_assoc()) $rows[] = package_summary_row($row);
+    while ($row = $res->fetch_assoc()) $rows[] = package_summary_row($row) + ['gaps' => package_gaps($row)];
     json_ok(['packages' => $rows]);
 }
 

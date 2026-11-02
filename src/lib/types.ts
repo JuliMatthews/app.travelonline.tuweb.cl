@@ -65,6 +65,8 @@ export type PackageSummary = {
   isFeatured: boolean;
   showInPromociones: boolean;
   updatedAt: string;
+  /** Datos que le faltan al paquete (solo viene en la lista): descripcion, precio, dias, incluye, no_incluye, itinerario. */
+  gaps?: string[];
 };
 
 export type PackageDetail = PackageSummary & {
