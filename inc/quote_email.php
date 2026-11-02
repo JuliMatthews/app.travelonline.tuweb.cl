@@ -39,6 +39,19 @@ function render_quote_email(array $v, array $req, string $brandName, string $int
     $valid = $v['valid_until'] ? '<p style="margin:18px 0 0;padding:10px 14px;border-left:4px solid #99634f;background:#fff;font-size:12.5px"><b>Cotización válida hasta el '
         . date('d-m-Y', strtotime($v['valid_until'])) . '.</b> Los valores pueden variar según disponibilidad al momento de confirmar la reserva.</p>' : '';
     $panel = $panelUrl ? '<p style="margin:14px 0 0;font-size:12.5px"><a href="' . qe_h($panelUrl) . '" style="color:#2d4874;font-weight:bold">Abrir esta versión (PDF) en el panel</a></p>' : '';
+    $days = json_decode($v['itinerary_json'] ?? '[]', true) ?: [];
+    $itin = '';
+    if ($days || trim((string) ($v['flights_text'] ?? '')) !== '') {
+        $itin = '<div style="margin-top:18px;background:#fff;border:1px solid #e3e7ee;border-radius:10px;padding:12px 14px"><b style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#2d4874">Itinerario de viaje</b>';
+        if (trim((string) $v['flights_text']) !== '') {
+            $itin .= '<div style="margin:8px 0;padding:8px 10px;background:#eef2f7;border-radius:8px;font-size:13px;line-height:1.5"><b>Vuelos</b><br>' . nl2br(qe_h($v['flights_text'])) . '</div>';
+        }
+        foreach ($days as $d) {
+            $itin .= '<div style="margin-top:9px;font-size:13px;line-height:1.5"><b style="color:#2d4874">' . qe_h($d['title']) . '</b>'
+                . ($d['detail'] !== '' ? '<br>' . nl2br(qe_h($d['detail'])) : '') . '</div>';
+        }
+        $itin .= '</div>';
+    }
     $e = QE_EMPRESA;
 
     return '<!doctype html><html><body style="margin:0;background:#e9edf3;font-family:Arial,Helvetica,sans-serif;color:#1b2433">'
@@ -58,7 +71,7 @@ function render_quote_email(array $v, array $req, string $brandName, string $int
       . '<p style="margin:5px 4px 0;text-align:right;color:#6b7385;font-size:12px">' . $pp . ' por persona</p>'
       . '<div style="margin-top:18px;background:#e9eee6;border-radius:10px;padding:12px 14px"><b style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#2d4874">Incluye</b>' . $list($v['includes_text'], '✓', '#4d6b3f') . '</div>'
       . '<div style="margin-top:10px;background:#f3e8e4;border-radius:10px;padding:12px 14px"><b style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#2d4874">No incluye</b>' . $list($v['excludes_text'], '✗', '#99634f') . '</div>'
-      . $valid . $panel . '</div>'
+      . $itin . $valid . $panel . '</div>'
       . '<div style="background:#1c2c47;color:#cfd8e6;padding:18px 26px;font-size:12px;line-height:1.6"><b style="color:#fff">Travel Online</b><br>'
       . qe_h($e['direccion']) . '. ' . qe_h($e['grupo']) . '.<br>' . qe_h($e['telefono']) . ' · WhatsApp ' . qe_h($e['whatsapp']) . ' · ' . qe_h($e['correo']) . '<br>' . qe_h($e['horario'])
       . '<br><span style="opacity:.7">© ' . date('Y') . ' ' . qe_h($e['razon']) . '. Todos los derechos reservados.</span></div>'

@@ -55,6 +55,12 @@ const CSS = `
 .pdf-list li { list-style: none; display: flex; gap: 7px; font-size: 12.5px; line-height: 1.45; margin-bottom: 4px }
 .pdf-list ul { margin: 0; padding: 0 }
 .pdf-list svg { flex: none; margin-top: 2px }
+.pdf-itin { margin-top: 20px; background: #fff; border: 1px solid #e3e7ee; border-radius: 14px; padding: 14px 18px }
+.pdf-itin h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #2d4874 }
+.pdf-flights { background: #eef2f7; border-radius: 10px; padding: 9px 12px; font-size: 12.5px; line-height: 1.5; white-space: pre-line; margin-bottom: 8px }
+.pdf-day { margin-top: 9px; break-inside: avoid; border-left: 3px solid #dab9b1; padding-left: 12px }
+.pdf-day b { display: block; font-size: 13px; color: #2d4874 }
+.pdf-day p { margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; white-space: pre-line }
 .pdf-valid { margin: 20px 0 0; padding: 11px 16px; border-left: 4px solid #99634f; background: #fff; border-radius: 0 10px 10px 0; font-size: 12px; line-height: 1.5 }
 .pdf-foot { background: #1c2c47; color: #cfd8e6; padding: 22px 34px 14px; margin-top: 24px; font-size: 10.5px; line-height: 1.6 }
 .pdf-foot-in { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 24px }
@@ -242,6 +248,19 @@ export default function CotizacionPdfPage() {
                 <h4>No incluye</h4>
                 <ul>{exc.map((t, i) => <li key={i}><X size={14} color="#99634f" />{t}</li>)}</ul>
               </div>
+            </div>
+          )}
+
+          {(v.itinerary.length > 0 || v.flightsText) && (
+            <div className="pdf-itin">
+              <h4>Itinerario de viaje</h4>
+              {v.flightsText && <div className="pdf-flights"><b>Vuelos</b>{"\n"}{v.flightsText}</div>}
+              {v.itinerary.map((d, i) => (
+                <div key={i} className="pdf-day">
+                  <b>{d.title}</b>
+                  {d.detail && <p>{d.detail}</p>}
+                </div>
+              ))}
             </div>
           )}
 

@@ -28,6 +28,7 @@ function version_row_to_json(array $r, int $number): array {
         'lines' => json_decode($r['lines_json'], true) ?: [],
         'discountClp' => (int) $r['discount_clp'], 'discountLabel' => $r['discount_label'], 'totalClp' => (int) $r['total_clp'],
         'includesText' => $r['includes_text'], 'excludesText' => $r['excludes_text'], 'validUntil' => $r['valid_until'],
+        'flightsText' => $r['flights_text'] ?? null, 'itinerary' => json_decode($r['itinerary_json'] ?? '[]', true) ?: [],
         'promisedAt' => $r['promised_at'],
         'changeReason' => $r['change_reason'], 'createdAt' => $r['created_at'], 'updatedAt' => $r['updated_at'], 'sentAt' => $r['sent_at'],
         'createdByName' => $r['created_by_name'] ?? null,
@@ -72,6 +73,20 @@ function clean_lines($raw, $discount): array {
     return [$lines, $subtotal - $disc];
 }
 
+// Itinerario por días: [{title, detail}]. Se descartan los días vacíos; máx. 60 días.
+function clean_itinerary($raw): array {
+    if (!is_array($raw)) return [];
+    $days = [];
+    foreach (array_slice($raw, 0, 60) as $d) {
+        if (!is_array($d)) continue;
+        $title = mb_substr(trim((string) ($d['title'] ?? '')), 0, 190);
+        $detail = mb_substr(trim((string) ($d['detail'] ?? '')), 0, 3000);
+        if ($title === '' && $detail === '') continue;
+        $days[] = ['title' => $title, 'detail' => $detail];
+    }
+    return $days;
+}
+
 function save_fields(mysqli $m, int $versionId, array $in): void {
     [$lines, $total] = clean_lines($in['lines'] ?? null, $in['discountClp'] ?? 0);
     $title = mb_substr(trim((string) ($in['title'] ?? '')), 0, 255);
@@ -85,9 +100,12 @@ function save_fields(mysqli $m, int $versionId, array $in): void {
     $valid = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($in['validUntil'] ?? '')) ? $in['validUntil'] : null;
     $reason = mb_substr(trim((string) ($in['changeReason'] ?? '')), 0, 500) ?: null;
     $promised = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($in['promisedAt'] ?? '')) ? $in['promisedAt'] : null;
+    $flights = mb_substr(trim((string) ($in['flightsText'] ?? '')), 0, 4000) ?: null;
+    $days = clean_itinerary($in['itinerary'] ?? []);
+    $itinJson = $days ? json_encode($days, JSON_UNESCAPED_UNICODE) : null;
     $s = $m->prepare('UPDATE quotation_versions SET title=?, subtitle=?, pax=?, lines_json=?, discount_clp=?, discount_label=?, total_clp=?,
-        includes_text=?, excludes_text=?, valid_until=?, change_reason=?, promised_at=? WHERE id=?');
-    $s->bind_param('ssisisisssssi', $title, $subtitle, $pax, $json, $disc, $discLabel, $total, $inc, $exc, $valid, $reason, $promised, $versionId);
+        includes_text=?, excludes_text=?, flights_text=?, itinerary_json=?, valid_until=?, change_reason=?, promised_at=? WHERE id=?');
+    $s->bind_param('ssisisisssssssi', $title, $subtitle, $pax, $json, $disc, $discLabel, $total, $inc, $exc, $flights, $itinJson, $valid, $reason, $promised, $versionId);
     $s->execute();
     $s->close();
 }
@@ -188,10 +206,11 @@ if ($action === 'new_version' && $method === 'POST') {
     $valid = date('Y-m-d', strtotime('+' . VALID_DAYS . ' days'));
     $json = json_encode($last['lines'], JSON_UNESCAPED_UNICODE);
     $s = $mysqli->prepare("INSERT INTO quotation_versions (quotation_id, version, title, subtitle, pax, lines_json, discount_clp, discount_label, total_clp,
-        includes_text, excludes_text, valid_until, promised_at, change_reason, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+        includes_text, excludes_text, flights_text, itinerary_json, valid_until, promised_at, change_reason, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+    $itinCopy = $last['itinerary'] ? json_encode($last['itinerary'], JSON_UNESCAPED_UNICODE) : null;
     $promised = date('Y-m-d', strtotime('+1 day')); // regla: el cambio pedido por el cliente sale al día siguiente
-    $s->bind_param('iissisisissssss', $quotation['id'], $next, $last['title'], $last['subtitle'], $last['pax'], $json, $last['discountClp'],
-        $last['discountLabel'], $last['totalClp'], $last['includesText'], $last['excludesText'], $valid, $promised, $reason, $userId);
+    $s->bind_param('iissisisissssssss', $quotation['id'], $next, $last['title'], $last['subtitle'], $last['pax'], $json, $last['discountClp'],
+        $last['discountLabel'], $last['totalClp'], $last['includesText'], $last['excludesText'], $last['flightsText'], $itinCopy, $valid, $promised, $reason, $userId);
     $s->execute();
     $newVersionId = $mysqli->insert_id;
     $s->close();

@@ -286,6 +286,7 @@ export type ClientDetail = {
   internalNotes: string | null;
 };
 
+export type ItineraryDay = { title: string; detail: string };
 export type QuotationLine = { title: string; detail: string; amountClp: number };
 
 export type QuotationVersion = {
@@ -302,6 +303,8 @@ export type QuotationVersion = {
   totalClp: number;
   includesText: string | null;
   excludesText: string | null;
+  flightsText: string | null;
+  itinerary: ItineraryDay[];
   validUntil: string | null;
   promisedAt: string | null;
   changeReason: string | null;
