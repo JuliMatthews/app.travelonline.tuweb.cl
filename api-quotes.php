@@ -477,6 +477,23 @@ if ($action === 'note' && $method === 'POST') {
     json_ok([]);
 }
 
+// "Registré contacto": un clic cuando se habló con el cliente por fuera del panel (WhatsApp, llamada, correo).
+// Reinicia el reloj de alertas y deja la huella en el historial. Una solicitud 'nueva' pasa a 'en_seguimiento'.
+if ($action === 'contact' && $method === 'POST') {
+    require_auth('quotes:edit');
+    $id = (int) ($_GET['id'] ?? 0);
+    $labels = ['whatsapp' => 'WhatsApp', 'telefono' => 'llamada telefónica', 'correo' => 'correo', 'presencial' => 'en persona'];
+    $medium = json_body()['medium'] ?? '';
+    if (!isset($labels[$medium])) json_error('Medio de contacto inválido', 400);
+    if ($mysqli->query('SELECT 1 FROM quote_requests WHERE id = ' . $id)->num_rows === 0) json_error('Solicitud no encontrada', 404);
+    $s = $mysqli->prepare("UPDATE quote_requests SET last_contact_at = NOW(), status = IF(status = 'nueva', 'en_seguimiento', status) WHERE id = ?");
+    $s->bind_param('i', $id);
+    $s->execute();
+    $s->close();
+    log_activity($mysqli, $id, $session['user']['id'], 'sistema', 'Contacto con el cliente por ' . $labels[$medium]);
+    json_ok([]);
+}
+
 if ($action === 'message' && $method === 'POST') {
     // Mensaje interno entre ejecutivas, dentro de la solicitud. No cuenta como contacto con el cliente.
     require_auth('messages:send');

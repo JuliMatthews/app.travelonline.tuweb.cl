@@ -106,6 +106,17 @@ export function SolicitudDetail({
     onChanged?.();
   }
 
+  async function logContact(medium: "whatsapp" | "telefono" | "correo" | "presencial") {
+    setBusy(true);
+    const res = await apiPost(`/api-quotes.php?action=contact&id=${id}`, { medium });
+    setBusy(false);
+    if (!res.ok) return setMsg({ ok: false, text: res.error });
+    setMsg({ ok: true, text: "Contacto registrado. El reloj de seguimiento volvió a cero." });
+    load();
+    reload();
+    onChanged?.();
+  }
+
   async function sendChat() {
     if (!chat.trim()) return;
     setBusy(true);
@@ -190,6 +201,15 @@ export function SolicitudDetail({
           </Link>
         )}
       </div>
+
+      {canEdit && q.alert !== "cerrado" && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2">
+          <span className="text-[12.5px] font-semibold">¿Hablaste con el cliente? Registra el contacto:</span>
+          {([["whatsapp", "WhatsApp"], ["telefono", "Llamada"], ["correo", "Correo"], ["presencial", "En persona"]] as const).map(([k, label]) => (
+            <button key={k} type="button" className="crm-btn" disabled={busy} onClick={() => logContact(k)}>{label}</button>
+          ))}
+        </div>
+      )}
 
       {q.quoteDue && (
         <p className="mt-3 rounded-lg px-3 py-2 text-[12.5px] font-bold" style={{ background: plazoCot(q.quoteDue)?.late ? "var(--rosa-050)" : "var(--mar-050)", color: plazoCot(q.quoteDue)?.late ? "var(--risk)" : "var(--st-en_seguimiento)" }}>
