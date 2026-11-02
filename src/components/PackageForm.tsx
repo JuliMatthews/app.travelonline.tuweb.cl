@@ -20,6 +20,7 @@ function emptyInput(): PackageInput {
     priceUnit: "per_person",
     included: "",
     notIncluded: "",
+    internalNotes: "",
     regionId: null,
     isFeatured: false,
     featuredSortOrder: null,
@@ -47,6 +48,7 @@ function fromDetail(pkg: PackageDetail): PackageInput {
     priceUnit: pkg.priceUnit,
     included: pkg.included ?? "",
     notIncluded: pkg.notIncluded ?? "",
+    internalNotes: pkg.internalNotes ?? "",
     regionId: pkg.region?.id ?? null,
     isFeatured: pkg.isFeatured,
     featuredSortOrder: pkg.featuredSortOrder,
@@ -308,6 +310,18 @@ export function PackageForm({
           <textarea
             value={form.notIncluded}
             onChange={(e) => update("notIncluded", e.target.value)}
+            rows={4}
+            className="input"
+          />
+        </Field>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="font-semibold text-brand-dark">Notas internas</h2>
+        <Field label="Proveedor, precio original en otra moneda, salidas, vigencia, dudas… (solo para el equipo, NO se ve en el sitio)">
+          <textarea
+            value={form.internalNotes}
+            onChange={(e) => update("internalNotes", e.target.value)}
             rows={4}
             className="input"
           />

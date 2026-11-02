@@ -104,11 +104,11 @@ if ($action === 'export' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         [['v' => '6. Descripción: 2 a 4 líneas que cuenten qué hace especial al viaje. Es el texto que ve el cliente al entrar al programa. Sin copiar y pegar el catálogo del proveedor completo.', 's' => XS_NOTE]],
         [['v' => '7. Las hojas ITINERARIO, OPCIONALES y HABITACIONES se llenan con una fila por día / por opcional / por variante. Si cambias el itinerario de un programa, reemplaza TODO el itinerario de ese programa, así que deja sus días completos. En un programa nuevo escribe en "ID programa" el mismo nombre del programa.', 's' => XS_NOTE]],
         [['v' => '8. Las fotos no van en el Excel: se agregan después desde el panel.', 's' => XS_NOTE]],
-        [['v' => '9. Si algo no está claro en el documento del proveedor, no lo adivines: déjalo vacío y escribe la duda en "Notas / dudas".', 's' => XS_NOTE]],
+        [['v' => '9. Si algo no está claro en el documento del proveedor, no lo adivines: déjalo vacío y escribe la duda en "Notas / dudas". Esa columna se guarda como nota interna del programa; nunca se muestra en el sitio.', 's' => XS_NOTE]],
     ];
 
     $head = ['ID (no cambiar)', 'Nombre', 'Subtítulo', 'Región', 'Tipo', 'Días', 'Noches', 'Precio desde (CLP)', 'Unidad de precio',
-        'Descripción (2 a 4 líneas)', 'Incluye (una línea por cosa)', 'No incluye (una línea por cosa)', 'Estado', 'Qué falta (automático, no se importa)', 'Notas / dudas (no se importa)'];
+        'Descripción (2 a 4 líneas)', 'Incluye (una línea por cosa)', 'No incluye (una línea por cosa)', 'Estado', 'Qué falta (automático, no se importa)', 'Notas / dudas (uso interno, no se ve en el sitio)'];
     $rows = [$head];
     $tipoInv = array_flip(PX_TIPOS); $unidadInv = array_flip(PX_UNIDADES); $estadoInv = array_flip(PX_ESTADOS);
     foreach ($pkgs as $slug => $p) {
@@ -126,7 +126,7 @@ if ($action === 'export' && $_SERVER['REQUEST_METHOD'] === 'GET') {
             trim((string) $p['included']) !== '' ? px_lines($p['included']) : $miss(),
             trim((string) $p['not_included']) !== '' ? px_lines($p['not_included']) : $miss(),
             $estadoInv[$p['status']] ?? '',
-            $locked($faltan === '' ? 'Completo' : $faltan), '',
+            $locked($faltan === '' ? 'Completo' : $faltan), px_clean((string) ($p['internal_notes'] ?? '')),
         ];
     }
     $sheetItin = [['ID programa', 'Programa (para que te ubiques)', 'Día', 'Título del día', 'Descripción del día']];
@@ -191,7 +191,7 @@ if ($action === 'import' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try { $sheets = xlsx_read($f['tmp_name']); } catch (RuntimeException $e) { json_error($e->getMessage(), 400); }
 
     $progRows = px_sheet_rows($sheets, 'PROGRAMAS', ['id' => 'id', 'name' => 'nombre', 'subtitle' => 'subtitulo', 'region' => 'region', 'tipo' => 'tipo',
-        'dias' => 'dias', 'noches' => 'noches', 'precio' => 'precio', 'unidad' => 'unidad', 'desc' => 'descripcion', 'inc' => 'incluye', 'exc' => 'no incluye', 'estado' => 'estado']);
+        'dias' => 'dias', 'noches' => 'noches', 'precio' => 'precio', 'unidad' => 'unidad', 'desc' => 'descripcion', 'inc' => 'incluye', 'exc' => 'no incluye', 'estado' => 'estado', 'notes' => 'notas']);
     if ($progRows === null) json_error('No encontré la hoja PROGRAMAS. Usa el Excel que se descarga desde el panel.', 400);
     if (count($progRows) > 500) json_error('Demasiadas filas (máximo 500 programas por archivo).', 400);
     $itinRows = px_sheet_rows($sheets, 'ITINERARIO', ['key' => 'id', 'ref' => 'programa', 'day' => 'dia', 'title' => 'titulo', 'desc' => 'descripcion']) ?? [];
@@ -284,6 +284,11 @@ if ($action === 'import' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $v = px_lines($r[$k]);
             if (mb_strlen($v) > 8000) $e['errors'][] = "\"$lab\" es muy largo (máx. 8000 caracteres).";
             else $add($lab, $col, $v, px_lines($cur[$col]));
+        }
+        if ($r['notes'] !== '') {
+            $nv = px_clean($r['notes']);
+            if (mb_strlen($nv) > 8000) $e['errors'][] = 'Las notas son muy largas (máx. 8000 caracteres).';
+            else $add('notas internas', 'internal_notes', $nv, px_clean((string) ($cur['internal_notes'] ?? '')));
         }
         if ($r['estado'] !== '' && !$e['new']) {
             $sv = null;

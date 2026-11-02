@@ -105,6 +105,7 @@ if ($action === 'get' && $method === 'GET') {
     $pkg['priceUnit'] = $row['price_unit'];
     $pkg['included'] = $row['included'];
     $pkg['notIncluded'] = $row['not_included'];
+    $pkg['internalNotes'] = $row['internal_notes'] ?? null;
     $pkg['featuredSortOrder'] = $row['featured_sort_order'] !== null ? (int) $row['featured_sort_order'] : null;
     $pkg['addons'] = $addons;
     $pkg['roomOptions'] = $roomOptions;
@@ -173,9 +174,9 @@ if ($action === 'create' && $method === 'POST') {
         'INSERT INTO packages (
            id, slug, title, subtitle, content, duration_days, duration_nights,
            package_type, price_display_mode, price_from_clp, price_to_clp, price_unit,
-           included, not_included, region_id, is_featured, featured_sort_order,
+           included, not_included, internal_notes, region_id, is_featured, featured_sort_order,
            show_in_promociones, status, created_by, updated_by
-         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
     );
     $subtitle = str_field($input, 'subtitle') ?: null;
     $content = str_field($input, 'content') ?: null;
@@ -185,15 +186,16 @@ if ($action === 'create' && $method === 'POST') {
     $priceToClp = int_or_null($input, 'priceToClp');
     $included = str_field($input, 'included') ?: null;
     $notIncluded = str_field($input, 'notIncluded') ?: null;
+    $internalNotes = mb_substr(str_field($input, 'internalNotes'), 0, 8000) ?: null;
     $regionId = $input['regionId'] ?: null;
     $isFeatured = !empty($input['isFeatured']) ? 1 : 0;
     $featuredSortOrder = int_or_null($input, 'featuredSortOrder');
     $showInPromociones = !empty($input['showInPromociones']) ? 1 : 0;
     $stmt->bind_param(
-        'sssssiissiissssiiisss',
+        'sssssiissiisssssiiisss',
         $id, $input['slug'], $input['title'], $subtitle, $content, $durationDays, $durationNights,
         $input['packageType'], $input['priceDisplayMode'], $priceFromClp, $priceToClp, $input['priceUnit'],
-        $included, $notIncluded, $regionId, $isFeatured, $featuredSortOrder,
+        $included, $notIncluded, $internalNotes, $regionId, $isFeatured, $featuredSortOrder,
         $showInPromociones, $input['status'], $user['id'], $user['id']
     );
     if (!$stmt->execute()) {
@@ -218,6 +220,7 @@ if ($action === 'update' && $method === 'POST') {
     $priceToClp = int_or_null($input, 'priceToClp');
     $included = str_field($input, 'included') ?: null;
     $notIncluded = str_field($input, 'notIncluded') ?: null;
+    $internalNotes = mb_substr(str_field($input, 'internalNotes'), 0, 8000) ?: null;
     $regionId = $input['regionId'] ?: null;
     $isFeatured = !empty($input['isFeatured']) ? 1 : 0;
     $featuredSortOrder = int_or_null($input, 'featuredSortOrder');
@@ -227,15 +230,15 @@ if ($action === 'update' && $method === 'POST') {
         'UPDATE packages SET
            slug=?, title=?, subtitle=?, content=?, duration_days=?, duration_nights=?,
            package_type=?, price_display_mode=?, price_from_clp=?, price_to_clp=?, price_unit=?,
-           included=?, not_included=?, region_id=?, is_featured=?, featured_sort_order=?,
+           included=?, not_included=?, internal_notes=?, region_id=?, is_featured=?, featured_sort_order=?,
            show_in_promociones=?, status=?, updated_by=?
          WHERE id=?'
     );
     $stmt->bind_param(
-        'ssssiissiissssiiisss',
+        'ssssiissiisssssiiisss',
         $input['slug'], $input['title'], $subtitle, $content, $durationDays, $durationNights,
         $input['packageType'], $input['priceDisplayMode'], $priceFromClp, $priceToClp, $input['priceUnit'],
-        $included, $notIncluded, $regionId, $isFeatured, $featuredSortOrder,
+        $included, $notIncluded, $internalNotes, $regionId, $isFeatured, $featuredSortOrder,
         $showInPromociones, $input['status'], $user['id'], $id
     );
     if (!$stmt->execute()) {

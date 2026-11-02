@@ -77,6 +77,7 @@ export type PackageDetail = PackageSummary & {
   priceUnit: PriceUnit;
   included: string | null;
   notIncluded: string | null;
+  internalNotes: string | null;
   featuredSortOrder: number | null;
   addons: PackageAddon[];
   roomOptions: PackageRoomOption[];
@@ -101,6 +102,7 @@ export type PackageInput = {
   priceUnit: PriceUnit;
   included: string;
   notIncluded: string;
+  internalNotes: string;
   regionId: string | null;
   isFeatured: boolean;
   featuredSortOrder: number | null;
