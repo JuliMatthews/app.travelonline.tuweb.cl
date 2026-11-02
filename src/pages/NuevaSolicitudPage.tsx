@@ -51,13 +51,13 @@ export default function NuevaSolicitudPage() {
   const field = (k: keyof typeof EMPTY, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}, wide = false) => (
     <label className={`block text-[12.5px] font-semibold ${wide ? "md:col-span-2" : ""}`}>
       {label}
-      <input className="crm-field mt-1" value={f[k]} onChange={(e) => set(k, e.target.value)} {...props} />
+      <input className="crm-field mt-1 block w-full" value={f[k]} onChange={(e) => set(k, e.target.value)} {...props} />
     </label>
   );
   const area = (k: keyof typeof EMPTY, label: string, rows = 3) => (
     <label className="block text-[12.5px] font-semibold md:col-span-2">
       {label}
-      <textarea className="crm-field mt-1" rows={rows} value={f[k]} onChange={(e) => set(k, e.target.value)} />
+      <textarea className="crm-field mt-1 block w-full" rows={rows} value={f[k]} onChange={(e) => set(k, e.target.value)} />
     </label>
   );
 
@@ -113,13 +113,13 @@ export default function NuevaSolicitudPage() {
           <div className="grid gap-3 md:grid-cols-2">
             <label className="block text-[12.5px] font-semibold">
               Canal por el que llegó
-              <select className="crm-field mt-1" value={f.channel} onChange={(e) => set("channel", e.target.value)}>
+              <select className="crm-field mt-1 block w-full" value={f.channel} onChange={(e) => set("channel", e.target.value)}>
                 {CHANNELS.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
               </select>
             </label>
             <label className="block text-[12.5px] font-semibold">
               Marca
-              <select className="crm-field mt-1" value={f.brand} onChange={(e) => set("brand", e.target.value)}>
+              <select className="crm-field mt-1 block w-full" value={f.brand} onChange={(e) => set("brand", e.target.value)}>
                 {BRAND_ORDER.map((b) => <option key={b} value={b}>{BRAND_LABEL[b]}</option>)}
               </select>
             </label>
@@ -146,7 +146,7 @@ export default function NuevaSolicitudPage() {
                 {area("meetingTopic", "¿Sobre qué viaje o tema quiere conversar?", 2)}
                 <label className="block text-[12.5px] font-semibold">
                   ¿Ya recibió una cotización?
-                  <select className="crm-field mt-1" value={f.hasQuote} onChange={(e) => set("hasQuote", e.target.value)}>
+                  <select className="crm-field mt-1 block w-full" value={f.hasQuote} onChange={(e) => set("hasQuote", e.target.value)}>
                     <option value="">No informado</option><option>Sí</option><option>No</option>
                   </select>
                 </label>
@@ -161,7 +161,7 @@ export default function NuevaSolicitudPage() {
                 {field("booking", "Número de reserva", { placeholder: "Si lo tiene" })}
                 <label className="block text-[12.5px] font-semibold">
                   ¿Está viajando actualmente?
-                  <select className="crm-field mt-1" value={f.travelling} onChange={(e) => set("travelling", e.target.value)}>
+                  <select className="crm-field mt-1 block w-full" value={f.travelling} onChange={(e) => set("travelling", e.target.value)}>
                     <option value="">No informado</option><option>Sí</option><option>No</option>
                   </select>
                 </label>
@@ -171,7 +171,7 @@ export default function NuevaSolicitudPage() {
             <div className="crm-section md:col-span-2">Asignación (opcional)</div>
             <label className="block text-[12.5px] font-semibold">
               Responsable
-              <select className="crm-field mt-1" value={f.assignedTo} onChange={(e) => set("assignedTo", e.target.value)}>
+              <select className="crm-field mt-1 block w-full" value={f.assignedTo} onChange={(e) => set("assignedTo", e.target.value)}>
                 <option value="">Sin asignar</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
