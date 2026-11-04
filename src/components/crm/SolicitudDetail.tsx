@@ -4,7 +4,7 @@ import { FileText, MessageCircle, Mail, X } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
-import { AlertDot, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
+import { AlertDot, AttendBadge, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
 import { CobrosPanel } from "@/components/crm/CobrosPanel";
 import {
   alertLabel,
@@ -31,6 +31,14 @@ type OperatorOpt = { id: number; name: string };
 
 // Detalle de una solicitud — cajón lateral del CRM de Francisco. Se usa en el
 // cajón de /solicitudes y en la página completa /solicitudes/:id.
+function haceDias(iso: string): string {
+  const d = Math.floor((Date.now() - new Date(iso.replace(" ", "T")).getTime()) / 86400000);
+  if (d < 1) return "hoy";
+  if (d < 30) return `hace ${d} día${d === 1 ? "" : "s"}`;
+  const m = Math.floor(d / 30);
+  return `hace ${m} mes${m === 1 ? "" : "es"}`;
+}
+
 export function SolicitudDetail({
   id,
   onClose,
@@ -148,7 +156,11 @@ export function SolicitudDetail({
   const edades = typeof q.details.edades === "string" ? q.details.edades : null;
   const phoneDigits = (q.passengerPhone || "").replace(/\D/g, "");
   const wsp = phoneDigits
-    ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(`Hola ${q.passengerName.split(" ")[0]}, te escribe Travel Online por tu solicitud ${q.folio ?? ""}.`)}`
+    ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(
+        q.recovered
+          ? `Hola ${q.passengerName.split(" ")[0]}, te escribimos de Travel Viajes Chile. Disculpa la demora: tu mensaje nos llegó con retraso por una falla técnica y queremos ayudarte con lo que nos pediste.`
+          : `Hola ${q.passengerName.split(" ")[0]}, te escribe Travel Online por tu solicitud ${q.folio ?? ""}.`
+      )}`
     : null;
 
   return (
@@ -222,6 +234,48 @@ export function SolicitudDetail({
         <p className={`mt-3 rounded-lg px-3 py-2 text-[12.5px] font-semibold ${msg.ok ? "bg-[var(--mar-050)] text-[color:var(--ok)]" : "bg-[var(--rosa-050)] text-[color:var(--risk)]"}`} role="status">
           {msg.text}
         </p>
+      )}
+
+      {q.recovered && q.recovery && (
+        <div
+          className="mt-4 rounded-xl border p-4"
+          style={{ borderColor: q.attended ? "var(--ok)" : "var(--risk)", borderLeftWidth: 5, background: "var(--surface-muted, rgba(127,127,127,.08))" }}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <b className="text-[14px]">📬 Rescatado del correo info@travelviajes.cl</b>
+            <AttendBadge attended={q.attended} />
+          </div>
+          <p className="mt-1.5 text-[13px] text-[color:var(--muted)]">
+            Este cliente escribió por {q.recovery.origen.toLowerCase()} {haceDias(q.recovery.primerMensaje)} y <b>no recibió respuesta</b>: el reenvío del correo
+            estuvo caído y el buzón quedó sin revisar. Es un caso excepcional: conviene escribirle pronto, disculparse por la demora y retomar lo que pidió.
+          </p>
+          <p className="mt-2 text-[13px]">
+            <b>Cómo atenderlo: </b>
+            {q.recovery.categoria === "Posventa"
+              ? "es un cliente que ya compró o tiene un problema con una reserva. Resolver esto primero: revisar la reserva en el sistema del operador y responderle con la solución."
+              : "retomar su consulta con lo que pidió (abajo), confirmar que sigue interesado y, si es así, preparar la cotización. Si ya viajó o compró en otro lado, registrarlo como No interesado."}
+          </p>
+          <div className="crm-section" style={{ marginTop: 14 }}>
+            Lo que solicitó por correo ({q.recovery.mensajes.length} mensaje{q.recovery.mensajes.length === 1 ? "" : "s"})
+          </div>
+          {q.recovery.mensajes.map((m, i) => (
+            <div key={i} className="mt-2 rounded-lg border border-[color:var(--line,rgba(127,127,127,.25))] p-3 text-[13px]">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[color:var(--muted)]">
+                <b className="text-foreground">{fechaLarga(m.fecha)}</b>
+                <span>{m.origen}</span>
+                {m.destino && <span>· {m.destino}</span>}
+              </div>
+              {(m.fechasViaje || m.pax || m.presupuesto) && (
+                <div className="mt-1 flex flex-wrap gap-x-4 text-[12.5px]">
+                  {m.fechasViaje && <span>Fechas: <b>{m.fechasViaje}</b></span>}
+                  {m.pax && <span>Personas: <b>{m.pax}</b></span>}
+                  {m.presupuesto && <span>Presupuesto: <b>{m.presupuesto}</b></span>}
+                </div>
+              )}
+              {m.texto && <p className="mt-1.5 whitespace-pre-line italic">“{m.texto}”</p>}
+            </div>
+          ))}
+        </div>
       )}
 
       <div className="crm-cols">
@@ -340,7 +394,7 @@ export function SolicitudDetail({
             <dd>{q.selectedAddons.map((a) => `${a.name} (${clp(a.priceClp)})`).join(", ")}</dd>
           </>
         )}
-        {q.comments && (
+        {q.comments && !q.recovered && (
           <>
             <dt>Comentarios</dt>
             <dd className="italic">“{q.comments}”</dd>

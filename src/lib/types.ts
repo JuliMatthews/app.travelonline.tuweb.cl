@@ -176,6 +176,29 @@ export type QuoteSummary = {
   alert: QuoteAlert;
   quoteDue: string | null;
   quoteOverdue: boolean;
+  /** Rescatada del correo info@travelviajes.cl (reenvío caído jun-nov 2026). */
+  recovered: boolean;
+  /** Alguien ya registró un contacto o movió el estado (solo tiene sentido en las rescatadas). */
+  attended: boolean;
+};
+
+/** Lo que el cliente pidió por correo, guardado al rescatarlo. */
+export type RecoveredMessage = {
+  fecha: string;
+  origen: string;
+  asunto: string;
+  destino: string;
+  fechasViaje: string;
+  pax: string;
+  presupuesto: string;
+  texto: string;
+};
+export type Recovery = {
+  categoria: "Nuevo lead" | "Posventa";
+  origen: string;
+  primerMensaje: string;
+  ultimoMensaje: string;
+  mensajes: RecoveredMessage[];
 };
 
 export type QuoteActivity = {
@@ -208,6 +231,7 @@ export type QuoteDetail = QuoteSummary & {
   quotedAt: string | null;
   closedAt: string | null;
   details: Record<string, unknown>;
+  recovery: Recovery | null;
   activity: QuoteActivity[];
 };
 
@@ -291,6 +315,14 @@ export type ClientSummary = {
   createdAt: string;
   lastLoginAt: string | null;
   quotesCount: number;
+  /** Tiene solicitudes rescatadas del correo info@travelviajes.cl. */
+  recovered: boolean;
+  /** ...y alguna sigue sin atender. */
+  pending: boolean;
+  /** ...y alguna es de posventa (devolución, anulación, cambio). */
+  posventa: boolean;
+  lastDestination: string | null;
+  firstRequestAt: string | null;
 };
 
 export type ClientQuoteSummary = {

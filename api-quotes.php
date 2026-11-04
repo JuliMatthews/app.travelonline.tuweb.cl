@@ -88,13 +88,16 @@ function quote_summary(array $r): array {
         'alert' => alert_level($r['status'], $hours),
         'quoteDue' => $r['quote_due'] ?? null,
         'quoteOverdue' => ($r['quote_due'] ?? null) !== null && $r['quote_due'] < date('Y-m-d'),
+        // Rescatadas del correo: "atendida" = alguien ya registró un contacto o movió el estado.
+        'recovered' => (bool) $r['recovered'],
+        'attended' => $r['status'] !== 'nueva' || $r['last_contact_at'] !== null,
     ];
 }
 
 const SUMMARY_SELECT = 'SELECT q.id, q.folio, q.request_type, q.channel, q.brand, q.created_at, q.package_slug, q.package_title,
         q.destination_text, q.origin_city, q.travel_type, q.adults, q.children, q.passenger_name, q.passenger_email,
         q.passenger_phone, q.total_clp, q.budget_clp, q.budget_range, q.sale_amount_clp, q.status, q.assigned_to,
-        q.last_contact_at, u.name AS assigned_to_name, ' . DAYS_SQL . ' AS days_since_contact, ' . HOURS_SQL . ' AS hours_since_contact, pq.quote_due
+        q.last_contact_at, q.recovered, u.name AS assigned_to_name, ' . DAYS_SQL . ' AS days_since_contact, ' . HOURS_SQL . ' AS hours_since_contact, pq.quote_due
      FROM quote_requests q LEFT JOIN users u ON u.id = q.assigned_to
      LEFT JOIN (SELECT qn.request_id, MIN(qv.promised_at) AS quote_due FROM quotations qn
         JOIN quotation_versions qv ON qv.quotation_id = qn.id AND qv.status = \'borrador\' AND qv.promised_at IS NOT NULL
@@ -137,6 +140,10 @@ function build_filters(array $session): array {
         $params[] = $assignedTo;
         $types .= 's';
     }
+    $origin = $_GET['origin'] ?? '';
+    if ($origin === 'rescatadas') $where[] = 'q.recovered = 1';
+    elseif ($origin === 'rescatadas_pendientes') $where[] = "q.recovered = 1 AND q.status = 'nueva' AND q.last_contact_at IS NULL";
+    elseif ($origin === 'rescatadas_atendidas') $where[] = "q.recovered = 1 AND (q.status <> 'nueva' OR q.last_contact_at IS NOT NULL)";
     $alert = $_GET['alert'] ?? '';
     if ($alert === 'urgente') $where[] = OPEN_SQL . ' AND ' . HOURS_SQL . ' >= ' . ALERT_URGENT_HOURS;
     elseif ($alert === 'atencion') $where[] = OPEN_SQL . ' AND ' . HOURS_SQL . ' >= ' . ALERT_WARN_HOURS . ' AND ' . HOURS_SQL . ' < ' . ALERT_URGENT_HOURS;
@@ -276,6 +283,8 @@ if ($action === 'get' && $method === 'GET') {
 
     $details = json_decode($row['details_json'] ?? 'null', true) ?: [];
     unset($details['demo']);
+    $recovery = $details['recuperado'] ?? null; // lo que pidió por correo (importador de rescatados)
+    unset($details['recuperado']);
 
     json_ok(['quote' => quote_summary($row) + [
         'roomOptionLabel' => $row['room_option_label'],
@@ -295,6 +304,7 @@ if ($action === 'get' && $method === 'GET') {
         'quotedAt' => $row['quoted_at'],
         'closedAt' => $row['closed_at'],
         'details' => $details,
+        'recovery' => $recovery,
         'activity' => $activity,
     ]]);
 }

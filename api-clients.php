@@ -11,7 +11,12 @@ $mysqli = db();
 if ($action === 'list' && $method === 'GET') {
     $res = $mysqli->query(
         "SELECT c.id, c.name, c.email, c.phone, c.email_verified_at, c.created_at, c.last_login_at,
-                (SELECT COUNT(*) FROM quote_requests q WHERE q.client_id = c.id) AS quotes_count
+                (SELECT COUNT(*) FROM quote_requests q WHERE q.client_id = c.id) AS quotes_count,
+                (SELECT COUNT(*) FROM quote_requests q WHERE q.client_id = c.id AND q.recovered = 1) AS recovered_count,
+                (SELECT COUNT(*) FROM quote_requests q WHERE q.client_id = c.id AND q.recovered = 1 AND q.status = 'nueva' AND q.last_contact_at IS NULL) AS pending_count,
+                (SELECT COUNT(*) FROM quote_requests q WHERE q.client_id = c.id AND q.recovered = 1 AND q.request_type = 'problema') AS posventa_count,
+                (SELECT q.destination_text FROM quote_requests q WHERE q.client_id = c.id ORDER BY q.created_at DESC LIMIT 1) AS last_destination,
+                (SELECT MIN(q.created_at) FROM quote_requests q WHERE q.client_id = c.id) AS first_request_at
          FROM clients c
          ORDER BY c.created_at DESC"
     );
@@ -26,6 +31,11 @@ if ($action === 'list' && $method === 'GET') {
             'createdAt' => $r['created_at'],
             'lastLoginAt' => $r['last_login_at'],
             'quotesCount' => (int) $r['quotes_count'],
+            'recovered' => (int) $r['recovered_count'] > 0,
+            'pending' => (int) $r['pending_count'] > 0,
+            'posventa' => (int) $r['posventa_count'] > 0,
+            'lastDestination' => $r['last_destination'],
+            'firstRequestAt' => $r['first_request_at'],
         ];
     }
     json_ok(['clients' => $rows]);
@@ -41,7 +51,7 @@ if ($action === 'get' && $method === 'GET') {
     if (!$client) json_error('Cliente no encontrado', 404);
 
     $stmt = $mysqli->prepare(
-        'SELECT id, created_at, package_title, status, total_clp
+        'SELECT id, created_at, COALESCE(package_title, destination_text, \'Solicitud\') AS package_title, status, total_clp
          FROM quote_requests WHERE client_id = ? ORDER BY created_at DESC'
     );
     $stmt->bind_param('s', $id);

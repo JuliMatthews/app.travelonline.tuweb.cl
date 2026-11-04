@@ -10,6 +10,15 @@ export function StatusBadge({ status }: { status: QuoteStatus }) {
   );
 }
 
+/** Rescatadas del correo: ¿ya la atendió alguien? (verde = atendida, rojo = por atender). */
+export function AttendBadge({ attended }: { attended: boolean }) {
+  return (
+    <span className="crm-badge" style={{ "--c": attended ? "var(--ok)" : "var(--risk)" } as React.CSSProperties}>
+      {attended ? "✓ Atendido" : "Por atender"}
+    </span>
+  );
+}
+
 export function ChannelBadge({ channel }: { channel: QuoteChannel }) {
   return (
     <span className="crm-badge" style={{ "--c": channelVar(channel) } as React.CSSProperties}>

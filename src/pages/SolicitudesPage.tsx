@@ -1,20 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Download, Plus } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
-import { AlertDot, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
+import { AlertDot, AttendBadge, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
 import { SolicitudDetail } from "@/components/crm/SolicitudDetail";
 import { BRAND_LABEL, BRAND_ORDER, horasTxt, plazoCot, CHANNEL_LABEL, CHANNEL_ORDER, STATUS_LABEL, STATUS_ORDER, clp, fecha } from "@/lib/crm";
 import type { QuoteSummary } from "@/lib/types";
 
 type QuoteUser = { id: string; name: string };
-const FILTERS = ["q", "status", "brand", "channel", "assignedTo", "alert", "due", "sort"] as const;
+const FILTERS = ["q", "status", "brand", "channel", "assignedTo", "alert", "due", "origin", "sort"] as const;
 
 // Solicitudes — tabla maestra + cajón de detalle (pantalla 3 del CRM de Francisco).
 export default function SolicitudesPage() {
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const openRow = (id: number) => navigate(`/solicitudes/${id}`); // cada cliente se abre en su propia página
   const { user } = useAuth();
   const { alertCfg } = useCrm();
   const full = can(user, "quotes:view"); // el rol "reportes" solo ve la tabla de ventas cerradas
@@ -138,6 +140,12 @@ export default function SolicitudesPage() {
             </option>
           ))}
         </select>
+        <select className="crm-field" value={params.get("origin") ?? ""} onChange={(e) => set("origin", e.target.value)} aria-label="Origen">
+          <option value="">Todo el origen</option>
+          <option value="rescatadas">📬 Rescatadas del correo (todas)</option>
+          <option value="rescatadas_pendientes">📬 Rescatadas · por atender</option>
+          <option value="rescatadas_atendidas">📬 Rescatadas · ya atendidas</option>
+        </select>
         <select className="crm-field" value={params.get("due") ?? ""} onChange={(e) => set("due", e.target.value)} aria-label="Cotización pendiente">
           <option value="">Cotizaciones: todas</option>
           <option value="pendientes">Con cotización pendiente de enviar</option>
@@ -173,9 +181,10 @@ export default function SolicitudesPage() {
       {/* Celular: tarjetas */}
       <div className="crm-cards md:hidden">
         {(rows ?? []).map((r) => (
-          <button key={r.id} type="button" className="crm-card" onClick={() => full && set("id", String(r.id))}>
+          <button key={r.id} type="button" className="crm-card" onClick={() => full && openRow(r.id)}>
             <div className="l1">
               <b className="truncate">{r.passengerName}</b>
+              {r.recovered && <AttendBadge attended={r.attended} />}
               <AlertDot alert={r.alert} hours={r.hoursSinceContact} />
             </div>
             <div className="l2">
@@ -206,6 +215,7 @@ export default function SolicitudesPage() {
               <th>Marca</th>
               <th>Canal</th>
               <th>Estado</th>
+              <th title="Solo para las rescatadas del correo">Atención</th>
               <th>Resp.</th>
               <th className="num">Monto</th>
               <th title="Seguimiento: días sin contacto">Seg.</th>
@@ -217,13 +227,14 @@ export default function SolicitudesPage() {
                 key={r.id}
                 className="clic"
                 tabIndex={0}
-                onClick={() => full && set("id", String(r.id))}
-                onKeyDown={(e) => e.key === "Enter" && full && set("id", String(r.id))}
+                onClick={() => full && openRow(r.id)}
+                onKeyDown={(e) => e.key === "Enter" && full && openRow(r.id)}
               >
                 <td className="whitespace-nowrap text-[12px] text-[color:var(--muted)]">{r.folio ?? `#${r.id}`}</td>
                 <td className="whitespace-nowrap">{fecha(r.createdAt)}</td>
                 <td>
                   <span className="whitespace-nowrap font-bold">{r.passengerName}</span>
+                  {r.recovered && <span className="sub" style={{ fontWeight: 700 }}>📬 Rescatado del correo</span>}
                   <span className="sub">{r.originCity ?? r.passengerEmail ?? ""}</span>
                   {r.quoteDue && <span className="sub" style={{ color: r.quoteOverdue ? "var(--risk)" : "var(--st-en_seguimiento)", fontWeight: 700 }}>⏰ {plazoCot(r.quoteDue)?.text}</span>}
                 </td>
@@ -238,6 +249,7 @@ export default function SolicitudesPage() {
                 <td>
                   <StatusBadge status={r.status} />
                 </td>
+                <td>{r.recovered ? <AttendBadge attended={r.attended} /> : <span className="text-[color:var(--muted)]">—</span>}</td>
                 <td className="whitespace-nowrap">{r.assignedToName ?? <span className="text-[color:var(--muted)]">—</span>}</td>
                 <td className="num">
                   {r.saleAmountClp != null ? (
