@@ -500,7 +500,16 @@ if ($action === 'contact' && $method === 'POST') {
     $s->bind_param('i', $id);
     $s->execute();
     $s->close();
-    log_activity($mysqli, $id, $session['user']['id'], 'sistema', 'Contacto con el cliente por ' . $labels[$medium]);
+    // Opcional: los datos que se le pidieron al cliente ("Pedir datos que faltan"), para que quede en el historial.
+    $asked = [];
+    foreach ((array) (json_body()['asked'] ?? []) as $item) {
+        $item = trim(mb_substr((string) $item, 0, 60));
+        if ($item !== '') $asked[] = $item;
+        if (count($asked) >= 8) break;
+    }
+    $text = 'Contacto con el cliente por ' . $labels[$medium];
+    if ($asked) $text .= ' · se le pidió: ' . implode(', ', $asked);
+    log_activity($mysqli, $id, $session['user']['id'], 'sistema', $text);
     json_ok([]);
 }
 

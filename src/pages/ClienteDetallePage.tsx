@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import type { ClientDetail, ClientQuoteSummary } from "@/lib/types";
@@ -10,6 +10,10 @@ export default function ClienteDetallePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const canEdit = can(user, "clients:edit");
+  const canDelete = can(user, "clients:delete");
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [client, setClient] = useState<ClientDetail | null>(null);
   const [quotes, setQuotes] = useState<ClientQuoteSummary[]>([]);
@@ -38,6 +42,17 @@ export default function ClienteDetallePage() {
     const result = await apiPost(`/api-clients.php?action=update&id=${id}`, { internalNotes: notes });
     setSaving(false);
     if (result.ok) setSaved(true);
+  }
+
+  async function handleDelete() {
+    if (!id || !client) return;
+    if (!window.confirm(`¿Eliminar a ${client.name} (${client.email})?\n\nEsta acción no se puede deshacer.`)) return;
+    setDeleting(true);
+    setDeleteError(null);
+    const result = await apiPost(`/api-clients.php?action=delete&id=${id}`, {});
+    setDeleting(false);
+    if (result.ok) navigate("/clientes", { replace: true });
+    else setDeleteError(result.error ?? "No se pudo eliminar");
   }
 
   if (notFound) return <p className="text-foreground/60">Cliente no encontrado.</p>;
@@ -116,6 +131,25 @@ export default function ClienteDetallePage() {
             >
               {saving ? "Guardando..." : "Guardar notas"}
             </button>
+          )}
+          {canDelete && (
+            <div className="mt-6 border-t border-border pt-4">
+              <h3 className="text-sm font-semibold text-foreground/70">Eliminar cliente</h3>
+              <p className="mt-1 text-xs text-foreground/60">
+                {quotes.length > 0
+                  ? `No se puede eliminar: tiene ${quotes.length} solicitud(es). Solo se eliminan clientes sin solicitudes (pruebas o duplicados).`
+                  : "Este cliente no tiene solicitudes. Quedará registrado quién lo eliminó."}
+              </p>
+              {deleteError && <p className="mt-2 text-sm text-red-700">{deleteError}</p>}
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting || quotes.length > 0}
+                className="mt-3 w-full rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {deleting ? "Eliminando..." : "Eliminar cliente"}
+              </button>
+            </div>
           )}
         </section>
       </div>

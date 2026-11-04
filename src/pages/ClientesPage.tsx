@@ -6,6 +6,12 @@ import type { ClientSummary } from "@/lib/types";
 
 const PER_PAGE = 25;
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const ORIGEN_TXT: Record<string, string> = {
+  registro: "Se registró en el portal",
+  google: "Entró con Google",
+  cotizacion_web: "Cotizó desde la web",
+  manual: "Creado a mano",
+};
 const mesDe = (iso: string | null) => (iso ? iso.slice(0, 7) : "");
 const mesTxt = (ym: string) => `${MESES[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
 
@@ -53,6 +59,7 @@ export default function ClientesPage() {
     const list = (clients ?? []).filter((c) => {
       if (origin === "rescatados" && !c.recovered) return false;
       if (origin === "sitio" && c.recovered) return false;
+      if (["registro", "google", "cotizacion_web", "manual"].includes(origin) && c.source !== origin) return false;
       if (att === "pendiente" && !(c.recovered && c.pending)) return false;
       if (att === "atendido" && !(c.recovered && !c.pending)) return false;
       if (kind === "posventa" && !c.posventa) return false;
@@ -99,7 +106,10 @@ export default function ClientesPage() {
         <select className="input w-auto" value={origin} onChange={(e) => set("origin", e.target.value)} aria-label="Origen">
           <option value="">Todo el origen</option>
           <option value="rescatados">📬 Rescatados del correo</option>
-          <option value="sitio">Registrados en el sitio</option>
+          <option value="sitio">Todos los del sitio (no rescatados)</option>
+          <option value="cotizacion_web">Cotizaron desde la web</option>
+          <option value="registro">Se registraron (correo)</option>
+          <option value="google">Entraron con Google</option>
         </select>
         <select className="input w-auto" value={att} onChange={(e) => set("att", e.target.value)} aria-label="Atención">
           <option value="">Atención: todos</option>
@@ -160,10 +170,12 @@ export default function ClientesPage() {
                   <Link to={`/clientes/${c.id}`} className="font-medium text-brand-dark hover:underline">
                     {c.name}
                   </Link>
-                  {c.recovered && (
+                  {c.recovered ? (
                     <span className="block text-xs font-semibold text-foreground/60">
                       📬 Rescatado del correo{c.posventa ? " · Posventa" : ""}
                     </span>
+                  ) : (
+                    ORIGEN_TXT[c.source] && <span className="block text-xs text-foreground/50">{ORIGEN_TXT[c.source]}</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-foreground/70">{c.email}</td>

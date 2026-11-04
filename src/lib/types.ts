@@ -311,6 +311,8 @@ export type ClientSummary = {
   name: string;
   email: string;
   phone: string | null;
+  /** registro | google | cotizacion_web | rescatado | manual */
+  source: string;
   emailVerified: boolean;
   createdAt: string;
   lastLoginAt: string | null;
@@ -338,6 +340,7 @@ export type ClientDetail = {
   name: string;
   email: string;
   phone: string | null;
+  source: string;
   emailVerified: boolean;
   hasPassword: boolean;
   hasGoogle: boolean;

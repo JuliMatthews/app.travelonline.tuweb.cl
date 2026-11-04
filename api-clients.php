@@ -10,7 +10,7 @@ $mysqli = db();
 
 if ($action === 'list' && $method === 'GET') {
     $res = $mysqli->query(
-        "SELECT c.id, c.name, c.email, c.phone, c.email_verified_at, c.created_at, c.last_login_at,
+        "SELECT c.id, c.name, c.email, c.phone, c.source, c.email_verified_at, c.created_at, c.last_login_at,
                 (SELECT COUNT(*) FROM quote_requests q WHERE q.client_id = c.id) AS quotes_count,
                 (SELECT COUNT(*) FROM quote_requests q WHERE q.client_id = c.id AND q.recovered = 1) AS recovered_count,
                 (SELECT COUNT(*) FROM quote_requests q WHERE q.client_id = c.id AND q.recovered = 1 AND q.status = 'nueva' AND q.last_contact_at IS NULL) AS pending_count,
@@ -27,6 +27,7 @@ if ($action === 'list' && $method === 'GET') {
             'name' => $r['name'],
             'email' => $r['email'],
             'phone' => $r['phone'],
+            'source' => $r['source'],
             'emailVerified' => $r['email_verified_at'] !== null,
             'createdAt' => $r['created_at'],
             'lastLoginAt' => $r['last_login_at'],
@@ -74,6 +75,7 @@ if ($action === 'get' && $method === 'GET') {
         'name' => $client['name'],
         'email' => $client['email'],
         'phone' => $client['phone'],
+        'source' => $client['source'],
         'emailVerified' => $client['email_verified_at'] !== null,
         'hasPassword' => $client['password_hash'] !== null,
         'hasGoogle' => $client['google_sub'] !== null,
@@ -93,6 +95,39 @@ if ($action === 'update' && $method === 'POST') {
     $stmt->bind_param('ss', $notes, $id);
     $stmt->execute();
     $stmt->close();
+    json_ok();
+}
+
+// Eliminar cliente: solo super_admin y solo si NO tiene solicitudes (así nunca se
+// pierde un historial real). Sirve para pruebas y duplicados vacíos. Queda registro.
+if ($action === 'delete' && $method === 'POST') {
+    $session = require_auth('clients:delete');
+    $id = $_GET['id'] ?? '';
+
+    $stmt = $mysqli->prepare('SELECT id, name, email, source FROM clients WHERE id = ?');
+    $stmt->bind_param('s', $id);
+    $stmt->execute();
+    $client = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$client) json_error('Cliente no encontrado', 404);
+
+    $stmt = $mysqli->prepare('SELECT COUNT(*) AS n FROM quote_requests WHERE client_id = ?');
+    $stmt->bind_param('s', $id);
+    $stmt->execute();
+    $n = (int) $stmt->get_result()->fetch_assoc()['n'];
+    $stmt->close();
+    if ($n > 0) json_error("Este cliente tiene $n solicitud(es). Por seguridad solo se pueden eliminar clientes sin solicitudes.", 409);
+
+    $mysqli->begin_transaction();
+    $stmt = $mysqli->prepare('INSERT INTO client_deletions (client_id, client_name, client_email, source, deleted_by_id, deleted_by_email) VALUES (?, ?, ?, ?, ?, ?)');
+    $stmt->bind_param('ssssss', $client['id'], $client['name'], $client['email'], $client['source'], $session['user']['id'], $session['user']['email']);
+    $stmt->execute();
+    $stmt->close();
+    $stmt = $mysqli->prepare('DELETE FROM clients WHERE id = ?');
+    $stmt->bind_param('s', $id);
+    $stmt->execute();
+    $stmt->close();
+    $mysqli->commit();
     json_ok();
 }
 

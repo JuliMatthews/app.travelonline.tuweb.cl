@@ -9,7 +9,7 @@ require_once __DIR__ . '/db.php';
 const ROLE_PERMISSIONS = [
     'super_admin' => [
         'quotes:view', 'quotes:edit',
-        'clients:view', 'clients:edit',
+        'clients:view', 'clients:edit', 'clients:delete',
         'packages:view', 'packages:create', 'packages:edit', 'packages:delete',
         'pages:view', 'pages:edit',
         'blog:view', 'blog:create', 'blog:edit', 'blog:delete',

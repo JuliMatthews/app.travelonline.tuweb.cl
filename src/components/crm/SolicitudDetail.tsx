@@ -6,6 +6,7 @@ import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
 import { AlertDot, AttendBadge, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
 import { CobrosPanel } from "@/components/crm/CobrosPanel";
+import { PedirDatos } from "@/components/crm/PedirDatos";
 import {
   alertLabel,
   BRAND_LABEL,
@@ -223,6 +224,8 @@ export function SolicitudDetail({
           ))}
         </div>
       )}
+
+      <PedirDatos requestId={id} quote={q} onLogged={load} />
 
       {q.quoteDue && (
         <p className="mt-3 rounded-lg px-3 py-2 text-[12.5px] font-bold" style={{ background: plazoCot(q.quoteDue)?.late ? "var(--rosa-050)" : "var(--mar-050)", color: plazoCot(q.quoteDue)?.late ? "var(--risk)" : "var(--st-en_seguimiento)" }}>

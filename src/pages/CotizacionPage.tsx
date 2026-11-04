@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
+import { PedirDatos } from "@/components/crm/PedirDatos";
 import { clp, fecha, fechaHora, plazoCot } from "@/lib/crm";
 import type { ItineraryDay, Quotation, QuotationLine, QuotationVersion } from "@/lib/types";
 
@@ -129,6 +130,8 @@ export default function CotizacionPage() {
           </a>
         </div>
       </div>
+
+      <div className="mb-3"><PedirDatos requestId={requestId} /></div>
 
       {msg && (
         <p className={`mb-3 rounded-lg px-3 py-2 text-[12.5px] font-semibold ${msg.ok ? "bg-[var(--mar-050)] text-[color:var(--ok)]" : "bg-[var(--rosa-050)] text-[color:var(--risk)]"}`} role="status">
