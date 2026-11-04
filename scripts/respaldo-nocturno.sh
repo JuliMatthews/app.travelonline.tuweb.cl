@@ -12,7 +12,9 @@ DEST="${DEST:-$HOME/respaldos}"
 mkdir -p "$DEST"
 HOY=$(date +%F)
 
-read -r DB_HOST DB_PORT DB_NAME DB_USER DB_PASS < <(php -r "require '$APP/config.php'; echo DB_HOST,' ',DB_PORT,' ',DB_NAME,' ',DB_USER,' ',DB_PASS,PHP_EOL;")
+CFG=$(php -r "require '$APP/config.php'; echo DB_HOST,' ',DB_PORT,' ',DB_NAME,' ',DB_USER,' ',DB_PASS;")
+set -- $CFG
+DB_HOST=$1; DB_PORT=$2; DB_NAME=$3; DB_USER=$4; DB_PASS=$5
 MYSQL_PWD="$DB_PASS" mysqldump -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" --no-tablespaces --single-transaction --routines "$DB_NAME" | gzip > "$DEST/bd-$HOY.sql.gz"
 
 if [ "$(date +%u)" = "7" ]; then
