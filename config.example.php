@@ -20,7 +20,7 @@ define('SESSION_COOKIE_NAME', 'to_admin_session');
 
 // URL pública de este panel — usada para construir URLs absolutas de imagen
 // cuando hace falta guardarlas como texto fijo (p.ej. <img> incrustados en
-// el contenido de una página estática). En producción: https://app.travelonline.tuweb.cl
+// el contenido de una página estática). En producción: https://app.travelonline.cl
 define('ADMIN_PUBLIC_URL', 'http://localhost:8801');
 
 // Correo de cotizaciones. MAIL_REVIEW_TO = casilla de revisión (visible en el botón del PDF);
