@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Solo se ejecuta desde la terminal.'); }
 // Sube las fotos reales curadas (una por paquete + 3 para Nosotros) al
 // almacenamiento de admin/ y las enlaza en MySQL (images/package_images/
 // static_page_images), reemplazando los <img> muertos de localhost:8090

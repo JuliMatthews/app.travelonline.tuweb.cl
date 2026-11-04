@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Solo se ejecuta desde la terminal.'); }
 // Bootstrap de cuentas — no hay auto-registro público (login cerrado por
 // allowlist). Sirve para crear la primera cuenta super_admin o resetear una
 // contraseña desde línea de comandos.

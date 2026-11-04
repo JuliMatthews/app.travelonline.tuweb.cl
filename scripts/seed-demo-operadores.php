@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Solo se ejecuta desde la terminal.'); }
 // Operadores de EJEMPLO tomados de la maqueta de Francisco (datos ilustrativos, NO reales
 // hasta que Carolina los confirme). Solo base LOCAL. Marcados is_demo=1.
 // Uso: php scripts/seed-demo-operadores.php <operadores.json>   |   --clean

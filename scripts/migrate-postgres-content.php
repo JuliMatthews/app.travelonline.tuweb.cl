@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Solo se ejecuta desde la terminal.'); }
 // Migra el contenido real (paquetes/addons/room_options/itinerario/páginas
 // estáticas/blog) desde los CSV exportados de la Postgres vieja (quotes-db)
 // hacia la MySQL nueva. Las imágenes NO se migran acá a propósito: los

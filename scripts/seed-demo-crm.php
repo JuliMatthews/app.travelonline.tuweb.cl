@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Solo se ejecuta desde la terminal.'); }
 // Datos de EJEMPLO para el CRM — SOLO para la base LOCAL de desarrollo, para
 // que el tablero y las solicitudes se vean con vida mientras se diseña.
 // Cada fila queda marcada con details_json.demo = true, así se pueden borrar

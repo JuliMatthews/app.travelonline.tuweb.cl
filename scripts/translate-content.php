@@ -1,4 +1,5 @@
 <?php
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Solo se ejecuta desde la terminal.'); }
 // Genera borradores EN/PT para el contenido real ya cargado (paquetes, blog,
 // páginas) usando la API gratuita de MyMemory — mismo principio que
 // web/scripts/translate-strings.php (ver ese archivo para más detalle de la

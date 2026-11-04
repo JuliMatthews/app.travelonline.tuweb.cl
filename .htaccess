@@ -1,3 +1,5 @@
+Options -Indexes
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
@@ -7,6 +9,11 @@
   RewriteCond %{HTTP_HOST} ^app\.travelonline\.cl$ [NC]
   RewriteCond %{HTTPS} off
   RewriteRule ^ https://app.travelonline.cl%{REQUEST_URI} [R=301,L]
+
+  # Archivos internos que no deben servirse por la web (código fuente, esquema, herramientas).
+  RewriteRule ^(scripts|db|src|inc|node_modules|mail-outbox|\.git)(/|$) - [F,L]
+  RewriteRule ^config(\.example)?\.php$ - [F,L]
+  RewriteRule \.(md|sh|sql|lock|json|tsx?|yaml)$ - [F,NC,L]
 
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
