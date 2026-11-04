@@ -5,6 +5,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
 import { AlertDot, BrandBadge, ChannelBadge, StatusBadge } from "@/components/crm/ui";
+import { CobrosPanel } from "@/components/crm/CobrosPanel";
 import {
   alertLabel,
   BRAND_LABEL,
@@ -394,6 +395,8 @@ export function SolicitudDetail({
           </>
         )}
       </dl>
+
+      <CobrosPanel quoteId={q.id} passengerName={q.passengerName} phone={q.passengerPhone} canEdit={canEdit} saleAmountClp={q.saleAmountClp ?? null} />
 
       <div className="crm-section">Observaciones internas</div>
       <textarea

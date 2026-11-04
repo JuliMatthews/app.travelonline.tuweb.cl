@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiPost, apiUpload } from "@/lib/api";
+import { apiGet, apiPost, apiUpload } from "@/lib/api";
 import type { PackageDetail, PackageInput, Region } from "@/lib/types";
 
 type ImageItem = { id: string; extension: string };
@@ -30,6 +30,11 @@ function emptyInput(): PackageInput {
     roomOptions: [],
     itinerary: [],
     imageIds: [],
+    operatorId: null,
+    priceUsd: null,
+    tariffValidUntil: null,
+    departuresText: "",
+    departures: [],
   };
 }
 
@@ -65,8 +70,18 @@ function fromDetail(pkg: PackageDetail): PackageInput {
       description: d.description,
     })),
     imageIds: pkg.images.map((i) => i.id),
+    operatorId: pkg.operatorId ?? null,
+    priceUsd: pkg.priceUsd ?? null,
+    tariffValidUntil: pkg.tariffValidUntil ?? null,
+    departuresText: pkg.departuresText ?? "",
+    departures: (pkg.departures ?? []).map((d) => ({ departsOn: d.departsOn, tier: d.tier ?? "", priceUsd: d.priceUsd, seats: d.seats, note: d.note ?? "" })),
   };
 }
+
+type OperatorOpt = { id: number; name: string; markupPct: number | null };
+type PricingInfo = { rate: number | null; step: number };
+const clp = (n: number) => `$${n.toLocaleString("es-CL")}`;
+const fmtDate = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("es-CL", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
 
 export function PackageForm({
   regions,
@@ -85,6 +100,32 @@ export function PackageForm({
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [operators, setOperators] = useState<OperatorOpt[]>([]);
+  const [pricing, setPricing] = useState<PricingInfo>({ rate: null, step: 1000 });
+  const [showPast, setShowPast] = useState(false);
+  const [bulkDates, setBulkDates] = useState("");
+  const [bulkTier, setBulkTier] = useState("");
+
+  useEffect(() => {
+    apiGet<{ operators: OperatorOpt[] }>("/api-operators.php?action=list").then((r) => { if (r.ok) setOperators(r.operators); });
+    apiGet<PricingInfo>("/api-pricing.php?action=settings").then((r) => { if (r.ok) setPricing({ rate: r.rate, step: r.step }); });
+  }, []);
+
+  const operator = operators.find((o) => o.id === form.operatorId) ?? null;
+  const computedClp =
+    form.priceUsd != null && pricing.rate ? Math.round((form.priceUsd * (1 + (operator?.markupPct ?? 0) / 100) * pricing.rate) / pricing.step) * pricing.step : null;
+  const today = new Date().toISOString().slice(0, 10);
+  const expired = !!form.tariffValidUntil && form.tariffValidUntil < today;
+  const upcoming = form.departures.filter((d) => d.departsOn >= today);
+  const past = form.departures.filter((d) => d.departsOn < today);
+
+  function addBulkDates() {
+    const found: string[] = bulkDates.match(/\d{4}-\d{2}-\d{2}/g) ?? [];
+    const have = new Set(form.departures.map((d) => `${d.departsOn}|${d.tier}`));
+    const add = found.filter((d, i) => found.indexOf(d) === i && !have.has(`${d}|${bulkTier.trim()}`)).map((d) => ({ departsOn: d, tier: bulkTier.trim(), priceUsd: null, seats: null, note: "" }));
+    update("departures", [...form.departures, ...add].sort((a, b) => a.departsOn.localeCompare(b.departsOn)));
+    setBulkDates("");
+  }
 
   function update<K extends keyof PackageInput>(key: K, value: PackageInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -294,6 +335,75 @@ export function PackageForm({
             </select>
           </Field>
         )}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="font-semibold text-brand-dark">Proveedor y tarifa en dólares</h2>
+        <p className="text-[13px] text-foreground/60">Si el proveedor da el precio en USD, anótalo aquí. El precio en pesos se calcula con el tipo de cambio y el margen del proveedor; no se publica solo.</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field label="Proveedor">
+            <select value={form.operatorId ?? ""} onChange={(e) => update("operatorId", e.target.value === "" ? null : Number(e.target.value))} className="input">
+              <option value="">Sin proveedor</option>
+              {operators.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Precio original (USD)">
+            <input type="number" min={0} step="0.01" value={form.priceUsd ?? ""} onChange={(e) => update("priceUsd", e.target.value === "" ? null : Number(e.target.value))} className="input" />
+          </Field>
+          <Field label="Tarifa válida hasta">
+            <input type="date" value={form.tariffValidUntil ?? ""} onChange={(e) => update("tariffValidUntil", e.target.value || null)} className="input" />
+          </Field>
+        </div>
+        {expired && <p className="rounded-lg bg-red-100 px-3 py-2 text-[13px] font-semibold text-red-900">⚠ La tarifa venció el {fmtDate(form.tariffValidUntil!)}. Pide una nueva al proveedor antes de publicar.</p>}
+        {form.priceUsd != null && (
+          <div className="rounded-lg border border-border bg-brand-light/40 px-3 py-2 text-[13px]">
+            {pricing.rate ? (
+              <>
+                <b>{clp(computedClp ?? 0)} CLP</b> = USD {form.priceUsd.toLocaleString("es-CL")} × (1 + margen {operator?.markupPct ?? 0}%) × tipo de cambio ${pricing.rate.toLocaleString("es-CL")}, redondeado a ${pricing.step.toLocaleString("es-CL")}.
+                <button type="button" className="ml-3 font-semibold text-brand hover:underline"
+                  onClick={() => { update("priceDisplayMode", "desde"); update("priceFromClp", computedClp); }}>Usar este precio</button>
+              </>
+            ) : (
+              <>Todavía no hay tipo de cambio definido, así que no se puede calcular el precio en pesos. Lo define quien administra el sistema (en Paquetes, panel de arriba).</>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="font-semibold text-brand-dark">Salidas</h2>
+        <Field label="Cuándo sale (texto que verá el cliente)">
+          <input value={form.departuresText} maxLength={255} onChange={(e) => update("departuresText", e.target.value)} placeholder="Ej.: Todos los sábados · Diarias de abril a octubre" className="input" />
+        </Field>
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-foreground/80">Fechas de salida concretas ({upcoming.length} próximas{past.length ? `, ${past.length} pasadas` : ""})</p>
+          {upcoming.length === 0 && <p className="text-[13px] text-foreground/50">No hay fechas próximas cargadas.</p>}
+          <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+            {(showPast ? form.departures : upcoming).map((d) => (
+              <div key={`${d.departsOn}|${d.tier}`} className={`flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-[13px] ${d.departsOn < today ? "opacity-50" : ""}`}>
+                <span className="w-44 font-medium">{fmtDate(d.departsOn)}</span>
+                <input value={d.tier} placeholder="Tarifa / color" onChange={(e) => update("departures", form.departures.map((x) => (x === d ? { ...x, tier: e.target.value } : x)))} className="input h-8 w-36" />
+                <input type="number" min={0} step="0.01" value={d.priceUsd ?? ""} placeholder="USD" onChange={(e) => update("departures", form.departures.map((x) => (x === d ? { ...x, priceUsd: e.target.value === "" ? null : Number(e.target.value) } : x)))} className="input h-8 w-24" />
+                <input type="number" min={0} value={d.seats ?? ""} placeholder="Cupos" onChange={(e) => update("departures", form.departures.map((x) => (x === d ? { ...x, seats: e.target.value === "" ? null : Number(e.target.value) } : x)))} className="input h-8 w-20" />
+                <button type="button" className="ml-auto text-sm text-red-600" onClick={() => update("departures", form.departures.filter((x) => x !== d))}>Quitar</button>
+              </div>
+            ))}
+          </div>
+          {past.length > 0 && (
+            <button type="button" className="text-[13px] font-semibold text-brand hover:underline" onClick={() => setShowPast((v) => !v)}>
+              {showPast ? "Ocultar las pasadas" : `Mostrar las ${past.length} pasadas`}
+            </button>
+          )}
+        </div>
+        <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+          <p className="text-[13px] font-semibold">Agregar varias fechas</p>
+          <p className="text-[12.5px] text-foreground/60">Escríbelas o pégalas con formato año-mes-día (2027-03-07), separadas por coma, espacio o salto de línea.</p>
+          <textarea value={bulkDates} onChange={(e) => setBulkDates(e.target.value)} rows={2} placeholder="2027-03-07, 2027-03-14, 2027-03-21" className="input" />
+          <div className="flex flex-wrap items-center gap-2">
+            <input value={bulkTier} onChange={(e) => setBulkTier(e.target.value)} placeholder="Tarifa / color (opcional)" className="input h-9 w-56" />
+            <button type="button" className="rounded-full border border-brand px-4 py-1.5 text-sm font-semibold text-brand hover:bg-brand-light/50 disabled:opacity-40" disabled={!/\d{4}-\d{2}-\d{2}/.test(bulkDates)} onClick={addBulkDates}>Agregar fechas</button>
+          </div>
+        </div>
       </section>
 
       <section className="space-y-4">

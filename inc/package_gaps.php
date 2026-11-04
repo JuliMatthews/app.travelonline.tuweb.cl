@@ -5,6 +5,9 @@
 const PACKAGE_GAP_LABELS = ['descripcion' => 'descripción', 'precio' => 'precio', 'dias' => 'días y noches',
     'incluye' => 'qué incluye', 'no_incluye' => 'qué no incluye', 'itinerario' => 'itinerario'];
 
+// Mínimo para publicar en bloque (el precio no bloquea: puede ir "bajo consulta").
+const PACKAGE_PUBLISH_MIN = ['descripcion', 'dias', 'itinerario', 'foto'];
+
 function package_gaps(array $row): array {
     $has = fn($v) => $v !== null && trim(strip_tags((string) $v)) !== '';
     $gaps = [];

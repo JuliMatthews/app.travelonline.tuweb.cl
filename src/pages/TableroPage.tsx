@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import { apiGet } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { useCrm } from "@/contexts/CrmContext";
 import { HBar, Kpi } from "@/components/crm/ui";
@@ -10,6 +12,34 @@ export default function TableroPage() {
   const { stats, alertCfg } = useCrm();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [usd, setUsd] = useState<{ value: number | null; date: string | null; rate: number | null } | null>(null);
+  useEffect(() => {
+    apiGet<{ observed: { value: number | null; date: string | null }; rate: number | null }>("/api-pricing.php?action=observed").then((r) => {
+      if (r.ok) setUsd({ value: r.observed.value, date: r.observed.date, rate: r.rate });
+    });
+  }, []);
+  type FxItem = { code: string; name: string; clp: number; date: string | null; official: boolean };
+  type FxGroup = { label: string; items: FxItem[] };
+  const [fx, setFx] = useState<Record<string, { clp: number; date: string | null }>>({});
+  const [fxGroups, setFxGroups] = useState<FxGroup[]>([]);
+  const [fxUpdated, setFxUpdated] = useState<string | null>(null);
+  const [fxOpen, setFxOpen] = useState(false);
+  useEffect(() => {
+    apiGet<{ groups: FxGroup[]; updatedAt: string | null }>("/api-pricing.php?action=currencies").then((r) => {
+      if (!r.ok) return;
+      const m: Record<string, { clp: number; date: string | null }> = {};
+      r.groups.forEach((g) => g.items.forEach((c) => { m[c.code] = { clp: c.clp, date: c.date }; }));
+      setFx(m);
+      setFxGroups(r.groups);
+      setFxUpdated(r.updatedAt);
+    });
+  }, []);
+  useEffect(() => {
+    if (!fxOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFxOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fxOpen]);
   const go = (qs: string) => navigate(`/solicitudes${qs ? `?${qs}` : ""}`);
 
   if (!can(user, "quotes:view")) return <Navigate to={can(user, "reports:view") ? "/reportes" : "/solicitudes"} replace />;
@@ -35,9 +65,35 @@ export default function TableroPage() {
           <h1>Tablero de control</h1>
           <p>Travel Online · datos al {fechaLarga(new Date().toISOString())}</p>
         </div>
-        <button type="button" className="crm-btn primary" onClick={() => go("")}>
-          Ver solicitudes →
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          {fxGroups.length > 0 && (
+            <button type="button" className="crm-btn" onClick={() => setFxOpen(true)} title="Ver todas las monedas de hoy">
+              ver +monedas
+            </button>
+          )}
+          {usd?.value && (
+            <div className="rounded-xl border border-[var(--border)] px-3 py-1.5 text-right leading-tight" title="Dólar observado del Banco Central de Chile. Con él se calculan los precios en pesos de los programas en USD.">
+              <span className="block text-[11px] uppercase tracking-wide text-[color:var(--muted)]">Dólar hoy</span>
+              <span className="text-lg font-bold">${usd.value.toLocaleString("es-CL")}</span>
+              <span className="block text-[11px] text-[color:var(--muted)]">
+                {usd.date ? new Date(`${usd.date}T12:00:00`).toLocaleDateString("es-CL", { day: "2-digit", month: "short" }) : ""}
+                {usd.rate && usd.rate !== usd.value ? ` · se usa $${usd.rate.toLocaleString("es-CL")}` : ""}
+              </span>
+            </div>
+          )}
+          {([["EUR", "Euro hoy", "Euro · oficial del Banco Central de Chile"], ["JPY", "Yen hoy", "Yen japonés (JPY) · referencial"], ["CNY", "Yuan hoy", "Yuan chino (CNY) · referencial"]] as const).map(([code, label, tip]) =>
+            fx[code] ? (
+              <div key={code} className="rounded-xl border border-[var(--border)] px-3 py-1.5 text-right leading-tight" title={`${tip}. Pesos chilenos por 1 unidad.`}>
+                <span className="block text-[11px] uppercase tracking-wide text-[color:var(--muted)]">{label}</span>
+                <span className="text-lg font-bold">${fx[code].clp.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="block text-[11px] text-[color:var(--muted)]">{fx[code].date ? new Date(`${fx[code].date}T12:00:00`).toLocaleDateString("es-CL", { day: "2-digit", month: "short" }) : ""}</span>
+              </div>
+            ) : null,
+          )}
+          <button type="button" className="crm-btn primary" onClick={() => go("")}>
+            Ver solicitudes →
+          </button>
+        </div>
       </div>
 
       <div className="crm-kpis">
@@ -151,6 +207,38 @@ export default function TableroPage() {
           </table>
         </div>
       </section>
+
+      {fxOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Monedas de hoy" onClick={() => setFxOpen(false)}>
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold">Monedas de hoy</h2>
+                <p className="text-[12.5px] text-[color:var(--muted)]">Pesos chilenos por 1 unidad, según los destinos de nuestros programas.{fxUpdated && <> Última actualización: {new Date(fxUpdated.replace(" ", "T")).toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}.{Date.now() - new Date(fxUpdated.replace(" ", "T")).getTime() > 36 * 3600 * 1000 && <b className="text-[color:var(--risk)]"> Los datos están desactualizados: la fuente no responde.</b>}</>}</p>
+              </div>
+              <button type="button" className="crm-btn" onClick={() => setFxOpen(false)} aria-label="Cerrar">Cerrar ✕</button>
+            </div>
+            <div className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+              {fxGroups.map((g) => (
+                <div key={g.label}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted)]">{g.label}</p>
+                  <ul className="mt-1.5 space-y-1">
+                    {g.items.map((c) => (
+                      <li key={c.code} className="flex items-baseline justify-between gap-3 border-b border-[var(--border)] pb-1 text-[13px]">
+                        <span><b>{c.code}</b> <span className="text-[color:var(--muted)]">{c.name}</span>{c.official && <span className="ml-1 text-[color:var(--ok)]" title="Oficial del Banco Central de Chile">●</span>}</span>
+                        <b>${c.clp.toLocaleString("es-CL", { minimumFractionDigits: c.clp < 100 || c.official ? 2 : 0, maximumFractionDigits: c.clp < 100 || c.official ? 2 : 0 })}</b>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-[11.5px] text-[color:var(--muted)]">
+              ● Dólar y euro: oficiales del Banco Central de Chile. Las demás son referenciales (<a className="underline" href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer">ExchangeRate-API</a>), calculadas contra el dólar observado, y se actualizan solas cada pocas horas. Los precios de los programas se calculan solo con el dólar.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

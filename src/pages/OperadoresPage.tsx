@@ -4,7 +4,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import type { Operator } from "@/lib/types";
 
 type Listing = { operators: Operator[]; countries: string[]; kinds: string[]; canEdit: boolean; showCommission: boolean };
-const EMPTY: Operator = { id: 0, name: "", country: "", kind: "", destinations: "", contactName: "", email: "", phone: "", notes: "", isActive: true, commissionPct: null };
+const EMPTY: Operator = { id: 0, name: "", country: "", kind: "", destinations: "", contactName: "", email: "", phone: "", notes: "", isActive: true, commissionPct: null, markupPct: null };
 
 // Directorio de operadores y proveedores — modo consulta (contacto, país, destinos).
 // La comisión solo aparece para los roles autorizados; editar, solo super admin.
@@ -133,7 +133,7 @@ export default function OperadoresPage() {
                   <dt>Correo</dt><dd>{open.email ?? "—"}</dd>
                   <dt>Teléfono</dt><dd>{open.phone ?? "—"}</dd>
                   <dt>Destinos</dt><dd>{open.destinations || "—"}</dd>
-                  {data?.showCommission && (<><dt>Comisión</dt><dd>{open.commissionPct != null ? `${open.commissionPct}%` : "—"}</dd></>)}
+                  {data?.showCommission && (<><dt>Comisión</dt><dd>{open.commissionPct != null ? `${open.commissionPct}%` : "—"}</dd><dt>Margen sobre sus tarifas</dt><dd>{open.markupPct ? `+${open.markupPct}%` : "sin margen"}</dd></>)}
                   <dt>Notas</dt><dd>{open.notes ?? "—"}</dd>
                 </dl>
                 {data?.canEdit && (
@@ -150,6 +150,7 @@ export default function OperadoresPage() {
                 <label className="block text-[12.5px] font-semibold md:col-span-2">Destinos (separados por coma)<input className="crm-field" value={form.destinations} onChange={(e) => set("destinations", e.target.value)} /></label>
                 <label className="block text-[12.5px] font-semibold">Contacto<input className="crm-field" value={form.contactName ?? ""} onChange={(e) => set("contactName", e.target.value)} /></label>
                 <label className="block text-[12.5px] font-semibold">Comisión (%)<input className="crm-field" inputMode="decimal" value={form.commissionPct ?? ""} onChange={(e) => set("commissionPct", e.target.value === "" ? null : Number(e.target.value.replace(",", ".")))} /></label>
+                <label className="block text-[12.5px] font-semibold">Margen que sumamos a sus tarifas (%)<input className="crm-field" inputMode="decimal" placeholder="0" value={form.markupPct ?? ""} onChange={(e) => set("markupPct", e.target.value === "" ? null : Number(e.target.value.replace(",", ".")))} /></label>
                 <label className="block text-[12.5px] font-semibold">Correo<input className="crm-field" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} /></label>
                 <label className="block text-[12.5px] font-semibold">Teléfono<input className="crm-field" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} /></label>
                 <label className="block text-[12.5px] font-semibold md:col-span-2">Notas<textarea className="crm-field" value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} /></label>

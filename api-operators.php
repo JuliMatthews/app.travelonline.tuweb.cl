@@ -18,6 +18,7 @@ function operator_json(array $r, bool $commission): array {
         'destinations' => $r['destinations_text'] ?? '', 'contactName' => $r['contact_name'], 'email' => $r['email'],
         'phone' => $r['phone'], 'notes' => $r['notes'], 'isActive' => (bool) $r['is_active'],
         'commissionPct' => $commission && $r['commission_pct'] !== null ? (float) $r['commission_pct'] : null,
+        'markupPct' => $commission ? (float) ($r['markup_pct'] ?? 0) : null,
     ];
 }
 
@@ -58,17 +59,20 @@ function read_operator(array $in): array {
     $pct = $in['commissionPct'] ?? null;
     $pct = ($pct === null || $pct === '') ? null : (float) $pct;
     if ($pct !== null && ($pct < 0 || $pct > 100)) json_error('La comisión debe estar entre 0 y 100', 400);
+    $mk = $in['markupPct'] ?? null;
+    $mk = ($mk === null || $mk === '') ? null : (float) $mk;
+    if ($mk !== null && ($mk < 0 || $mk > 300)) json_error('El margen debe estar entre 0 y 300', 400);
     return [
         mb_substr($name, 0, 190), mb_substr(str_field($in, 'country'), 0, 100), mb_substr(str_field($in, 'kind'), 0, 60),
         mb_substr(str_field($in, 'destinations'), 0, 500) ?: null, $pct, mb_substr(str_field($in, 'contactName'), 0, 190) ?: null,
-        $email ?: null, mb_substr(str_field($in, 'phone'), 0, 60) ?: null, mb_substr(str_field($in, 'notes'), 0, 4000) ?: null,
+        $email ?: null, mb_substr(str_field($in, 'phone'), 0, 60) ?: null, mb_substr(str_field($in, 'notes'), 0, 4000) ?: null, $mk,
     ];
 }
 
 if ($action === 'create' && $method === 'POST') {
     $f = read_operator(json_body());
-    $stmt = $mysqli->prepare('INSERT INTO operators (name, country, kind, destinations_text, commission_pct, contact_name, email, phone, notes) VALUES (?,?,?,?,?,?,?,?,?)');
-    $stmt->bind_param('ssssdssss', ...$f);
+    $stmt = $mysqli->prepare('INSERT INTO operators (name, country, kind, destinations_text, commission_pct, contact_name, email, phone, notes, markup_pct) VALUES (?,?,?,?,?,?,?,?,?,COALESCE(?,0))');
+    $stmt->bind_param('ssssdssssd', ...$f);
     $stmt->execute();
     json_ok(['id' => $mysqli->insert_id]);
 }
@@ -78,8 +82,8 @@ if ($action === 'update' && $method === 'POST') {
     $in = json_body();
     $f = read_operator($in);
     $active = array_key_exists('isActive', $in) ? (int) !empty($in['isActive']) : 1;
-    $stmt = $mysqli->prepare('UPDATE operators SET name=?, country=?, kind=?, destinations_text=?, commission_pct=?, contact_name=?, email=?, phone=?, notes=?, is_active=? WHERE id=?');
-    $stmt->bind_param('ssssdssssii', ...[...$f, $active, $id]);
+    $stmt = $mysqli->prepare('UPDATE operators SET name=?, country=?, kind=?, destinations_text=?, commission_pct=?, contact_name=?, email=?, phone=?, notes=?, markup_pct=COALESCE(?, markup_pct), is_active=? WHERE id=?');
+    $stmt->bind_param('ssssdssssdii', ...[...$f, $active, $id]);
     $stmt->execute();
     json_ok([]);
 }

@@ -67,7 +67,21 @@ export type PackageSummary = {
   updatedAt: string;
   /** Datos que le faltan al paquete (solo viene en la lista): descripcion, precio, dias, incluye, no_incluye, itinerario. */
   gaps?: string[];
+  /** Solicitudes de cotización de los últimos 30 días que mencionan este programa (solo viene en la lista). */
+  quotes30?: number;
+  operatorId?: number | null;
+  operatorName?: string | null;
+  /** Precio original del proveedor en dólares (CLP = USD × (1 + margen) × tipo de cambio). */
+  priceUsd?: number | null;
+  tariffValidUntil?: string | null;
+  tariffExpired?: boolean;
+  /** Regla de salidas tal como la dice el proveedor ("Todos los sábados"). */
+  departuresText?: string | null;
+  nextDeparture?: string | null;
+  futureDepartures?: number;
 };
+
+export type PackageDeparture = { id?: number; departsOn: string; tier: string | null; priceUsd: number | null; seats: number | null; note: string | null };
 
 export type PackageDetail = PackageSummary & {
   content: string | null;
@@ -83,6 +97,7 @@ export type PackageDetail = PackageSummary & {
   roomOptions: PackageRoomOption[];
   itinerary: PackageItineraryDay[];
   images: PackageImage[];
+  departures: PackageDeparture[];
 };
 
 // Payload que manda el formulario del panel al crear/editar un paquete —
@@ -112,6 +127,11 @@ export type PackageInput = {
   roomOptions: { label: string; priceAdjustmentClp: number }[];
   itinerary: { dayNumber: number | null; title: string; description: string }[];
   imageIds: string[]; // orden = el orden final de la galería
+  operatorId: number | null;
+  priceUsd: number | null;
+  tariffValidUntil: string | null;
+  departuresText: string;
+  departures: { departsOn: string; tier: string; priceUsd: number | null; seats: number | null; note: string }[];
 };
 
 export type QuoteStatus =
@@ -349,6 +369,8 @@ export type Operator = {
   notes: string | null;
   isActive: boolean;
   commissionPct: number | null;
+  /** Margen que Travel Online suma sobre la tarifa de este proveedor (solo lo ve quien ve comisiones). */
+  markupPct: number | null;
 };
 
 export type ReportRow = {

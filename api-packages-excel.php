@@ -1,6 +1,6 @@
 <?php
 // Excel para completar los programas: se descarga con lo que ya hay (lo que falta, resaltado) y se vuelve a subir.
-//   GET  ?action=export          → .xlsx con 4 hojas (PROGRAMAS, ITINERARIO, OPCIONALES, HABITACIONES) + LEEME
+//   GET  ?action=export          → .xlsx con 5 hojas (PROGRAMAS, ITINERARIO, OPCIONALES, HABITACIONES, SALIDAS) + LEEME
 //   POST ?action=import          → vista previa de lo que cambiaría (no escribe nada)
 //   POST ?action=import&apply=1  → aplica los cambios
 // Reglas: una celda vacía NUNCA borra lo que ya existe; un programa nuevo siempre queda en BORRADOR.
@@ -59,6 +59,30 @@ function px_int($v): ?int { // "1.234.500", "$ 2 090 000" → 1234500 ; vacío �
     return $neg ? -(int) $d : (int) $d;
 }
 
+function px_money($v) { // "1.199", "1199,50", "USD 2.480.5" → 1199.0 ; vacío → null ; basura → false
+    $v = trim(preg_replace('/(usd|us\$|\$|\s)/i', '', (string) $v));
+    if ($v === '') return null;
+    if (preg_match('/^\d{1,3}(\.\d{3})+$/', $v)) $v = str_replace('.', '', $v);        // 1.199 → 1199 (punto de miles)
+    elseif (preg_match('/^\d{1,3}(\.\d{3})+,\d{1,2}$/', $v)) $v = str_replace(',', '.', str_replace('.', '', $v)); // 1.199,50
+    else $v = str_replace(',', '.', $v);
+    return is_numeric($v) && (float) $v >= 0 && (float) $v <= 10000000 ? round((float) $v, 2) : false;
+}
+function px_date($v) { // 2027-03-07 | 07/03/2027 | 7-3-27 | número de serie de Excel → 'YYYY-MM-DD' ; vacío → null ; basura → false
+    $v = trim((string) $v);
+    if ($v === '') return null;
+    if (preg_match('/^\d{5}(\.\d+)?$/', $v) && (float) $v > 30000 && (float) $v < 70000) return gmdate('Y-m-d', (int) (((float) $v - 25569) * 86400));
+    if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})/', $v, $m)) [$y, $mo, $d] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+    elseif (preg_match('/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/', $v, $m)) { $d = (int) $m[1]; $mo = (int) $m[2]; $y = (int) $m[3]; if ($y < 100) $y += 2000; }
+    else return false;
+    return checkdate($mo, $d, $y) && $y >= 2000 && $y <= 2100 ? sprintf('%04d-%02d-%02d', $y, $mo, $d) : false;
+}
+function px_load_operators(mysqli $m): array { // nombre normalizado → [id, name]
+    $out = [];
+    $res = $m->query('SELECT id, name FROM operators WHERE is_active = 1 ORDER BY name');
+    while ($r = $res->fetch_assoc()) $out[px_norm($r['name'])] = $r;
+    return $out;
+}
+
 function px_load_regions(mysqli $m): array { // nombre normalizado → [id, name]
     $out = [];
     $res = $m->query('SELECT id, name FROM regions ORDER BY sort_order');
@@ -67,8 +91,8 @@ function px_load_regions(mysqli $m): array { // nombre normalizado → [id, name
 }
 
 function px_load_packages(mysqli $m): array { // slug → fila + itin_days + region_name
-    $res = $m->query('SELECT p.*, r.name AS region_name, (SELECT COUNT(*) FROM package_itinerary_days d WHERE d.package_id = p.id) AS itin_days
-        FROM packages p LEFT JOIN regions r ON r.id = p.region_id ORDER BY r.sort_order, p.title');
+    $res = $m->query('SELECT p.*, r.name AS region_name, o.name AS operator_name, (SELECT COUNT(*) FROM package_itinerary_days d WHERE d.package_id = p.id) AS itin_days
+        FROM packages p LEFT JOIN regions r ON r.id = p.region_id LEFT JOIN operators o ON o.id = p.operator_id ORDER BY r.sort_order, p.title');
     $out = [];
     while ($r = $res->fetch_assoc()) $out[$r['slug']] = $r;
     return $out;
@@ -88,6 +112,8 @@ if ($action === 'export' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $itin = px_children($mysqli, 'package_itinerary_days', 'day_number, title, description', 'sort_order');
     $adds = px_children($mysqli, 'package_addons', 'name, price_clp', 'sort_order');
     $rooms = px_children($mysqli, 'package_room_options', 'label, price_adjustment_clp', 'sort_order');
+    $ops = px_load_operators($mysqli);
+    $deps = px_children($mysqli, 'package_departures', 'departs_on, tier, price_usd, seats, note', 'departs_on, tier');
     $miss = fn() => ['v' => '', 's' => XS_MISSING];
     $locked = fn($v) => ['v' => $v, 's' => XS_LOCKED];
 
@@ -105,10 +131,14 @@ if ($action === 'export' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         [['v' => '7. Las hojas ITINERARIO, OPCIONALES y HABITACIONES se llenan con una fila por día / por opcional / por variante. Si cambias el itinerario de un programa, reemplaza TODO el itinerario de ese programa, así que deja sus días completos. En un programa nuevo escribe en "ID programa" el mismo nombre del programa.', 's' => XS_NOTE]],
         [['v' => '8. Las fotos no van en el Excel: se agregan después desde el panel.', 's' => XS_NOTE]],
         [['v' => '9. Si algo no está claro en el documento del proveedor, no lo adivines: déjalo vacío y escribe la duda en "Notas / dudas". Esa columna se guarda como nota interna del programa; nunca se muestra en el sitio.', 's' => XS_NOTE]],
+        [['v' => '10. Si el proveedor da el precio en dólares, escríbelo en "Precio original (USD)" (el punto de miles está bien: 1.199). El precio en pesos NO se escribe a mano: el sistema lo calcula con el dólar del día y el margen del proveedor, y se aplica desde el panel (Paquetes → Precios en dólares).', 's' => XS_NOTE]],
+        [['v' => '11. "Proveedor" se elige de la lista (son los de la sección Operadores). "Tarifa válida hasta" es el último día en que vale el precio del proveedor (por ejemplo 31/03/2027): cuando pasa, el programa queda marcado como "tarifa vencida". "Salidas (texto)" es la regla que lee el cliente, por ejemplo "Todos los sábados" o "Diarias de abril a octubre".', 's' => XS_NOTE]],
+        [['v' => '12. La hoja SALIDAS lleva una fila por fecha de salida (formato 07/03/2027 o 2027-03-07). Tarifa / color, Precio USD y Cupos son opcionales. Si cambias las salidas de un programa, reemplaza TODAS las de ese programa, así que deja su lista completa. En un programa nuevo escribe en "ID programa" el mismo nombre del programa.', 's' => XS_NOTE]],
     ];
 
     $head = ['ID (no cambiar)', 'Nombre', 'Subtítulo', 'Región', 'Tipo', 'Días', 'Noches', 'Precio desde (CLP)', 'Unidad de precio',
-        'Descripción (2 a 4 líneas)', 'Incluye (una línea por cosa)', 'No incluye (una línea por cosa)', 'Estado', 'Qué falta (automático, no se importa)', 'Notas / dudas (uso interno, no se ve en el sitio)'];
+        'Descripción (2 a 4 líneas)', 'Incluye (una línea por cosa)', 'No incluye (una línea por cosa)', 'Estado', 'Qué falta (automático, no se importa)', 'Notas / dudas (uso interno, no se ve en el sitio)',
+        'Proveedor', 'Precio original (USD)', 'Tarifa válida hasta (día/mes/año)', 'Salidas (texto que verá el cliente)'];
     $rows = [$head];
     $tipoInv = array_flip(PX_TIPOS); $unidadInv = array_flip(PX_UNIDADES); $estadoInv = array_flip(PX_ESTADOS);
     foreach ($pkgs as $slug => $p) {
@@ -127,26 +157,35 @@ if ($action === 'export' && $_SERVER['REQUEST_METHOD'] === 'GET') {
             trim((string) $p['not_included']) !== '' ? px_lines($p['not_included']) : $miss(),
             $estadoInv[$p['status']] ?? '',
             $locked($faltan === '' ? 'Completo' : $faltan), px_clean((string) ($p['internal_notes'] ?? '')),
+            $p['operator_name'] ?? '', $p['price_usd'] !== null ? (float) $p['price_usd'] : '',
+            !empty($p['tariff_valid_until']) ? date('d/m/Y', strtotime($p['tariff_valid_until'])) : '', $p['departures_text'] ?? '',
         ];
     }
     $sheetItin = [['ID programa', 'Programa (para que te ubiques)', 'Día', 'Título del día', 'Descripción del día']];
     $sheetAdd = [['ID programa', 'Programa (para que te ubiques)', 'Nombre del opcional', 'Precio (CLP)']];
     $sheetRoom = [['ID programa', 'Programa (para que te ubiques)', 'Variante (habitación o salida)', 'Diferencia de precio (CLP, negativo si baja)']];
+    $sheetDep = [['ID programa', 'Programa (para que te ubiques)', 'Fecha de salida (día/mes/año)', 'Tarifa / color (opcional)', 'Precio USD (opcional)', 'Cupos (opcional)']];
     foreach ($pkgs as $slug => $p) {
         foreach ($itin[$p['id']] ?? [] as $d) $sheetItin[] = [$locked($slug), $locked($p['title']), $d['day_number'] !== null ? (int) $d['day_number'] : '', $d['title'], px_plain($d['description'])];
         foreach ($adds[$p['id']] ?? [] as $a) $sheetAdd[] = [$locked($slug), $locked($p['title']), $a['name'], (int) $a['price_clp']];
+        foreach ($deps[$p['id']] ?? [] as $d) $sheetDep[] = [$locked($slug), $locked($p['title']), date('d/m/Y', strtotime($d['departs_on'])), $d['tier'] ?? '', $d['price_usd'] !== null ? (float) $d['price_usd'] : '', $d['seats'] !== null ? (int) $d['seats'] : ''];
         foreach ($rooms[$p['id']] ?? [] as $r) $sheetRoom[] = [$locked($slug), $locked($p['title']), $r['label'], (int) $r['price_adjustment_clp']];
     }
+
+    $lists = [['col' => 3, 'values' => array_values(array_map(fn($r) => $r['name'], $regions))], ['col' => 4, 'values' => array_keys(PX_TIPOS)],
+        ['col' => 8, 'values' => array_keys(PX_UNIDADES)], ['col' => 12, 'values' => array_keys(PX_ESTADOS)]];
+    $opNames = array_values(array_filter(array_map(fn($o) => $o['name'], $ops), fn($n) => !str_contains($n, ',')));
+    if ($opNames && mb_strlen(implode(',', $opNames)) <= 250) $lists[] = ['col' => 15, 'values' => $opNames]; // Excel no admite listas en línea de más de 255 caracteres
 
     $bin = xlsx_build([
         ['name' => 'LEEME', 'widths' => [110], 'rows' => $leeme],
         ['name' => 'PROGRAMAS', 'header' => true, 'freeze' => true, 'rows' => $rows,
-         'widths' => [24, 34, 30, 16, 16, 7, 8, 16, 14, 52, 42, 38, 12, 34, 30],
-         'lists' => [['col' => 3, 'values' => array_values(array_map(fn($r) => $r['name'], $regions))], ['col' => 4, 'values' => array_keys(PX_TIPOS)],
-                     ['col' => 8, 'values' => array_keys(PX_UNIDADES)], ['col' => 12, 'values' => array_keys(PX_ESTADOS)]]],
+         'widths' => [24, 34, 30, 16, 16, 7, 8, 16, 14, 52, 42, 38, 12, 34, 30, 22, 16, 18, 34],
+         'lists' => $lists],
         ['name' => 'ITINERARIO', 'header' => true, 'freeze' => true, 'rows' => $sheetItin, 'widths' => [24, 34, 6, 38, 90]],
         ['name' => 'OPCIONALES', 'header' => true, 'freeze' => true, 'rows' => $sheetAdd, 'widths' => [24, 34, 46, 16]],
         ['name' => 'HABITACIONES', 'header' => true, 'freeze' => true, 'rows' => $sheetRoom, 'widths' => [24, 34, 46, 22]],
+        ['name' => 'SALIDAS', 'header' => true, 'freeze' => true, 'rows' => $sheetDep, 'widths' => [24, 34, 22, 24, 18, 16]],
     ]);
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="programas-travelonline-' . date('Ymd') . '.xlsx"');
@@ -191,14 +230,18 @@ if ($action === 'import' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try { $sheets = xlsx_read($f['tmp_name']); } catch (RuntimeException $e) { json_error($e->getMessage(), 400); }
 
     $progRows = px_sheet_rows($sheets, 'PROGRAMAS', ['id' => 'id', 'name' => 'nombre', 'subtitle' => 'subtitulo', 'region' => 'region', 'tipo' => 'tipo',
-        'dias' => 'dias', 'noches' => 'noches', 'precio' => 'precio', 'unidad' => 'unidad', 'desc' => 'descripcion', 'inc' => 'incluye', 'exc' => 'no incluye', 'estado' => 'estado', 'notes' => 'notas']);
+        'dias' => 'dias', 'noches' => 'noches', 'usd' => 'precio original', 'precio' => 'precio', 'unidad' => 'unidad', 'desc' => 'descripcion', 'inc' => 'incluye', 'exc' => 'no incluye', 'estado' => 'estado', 'notes' => 'notas', 'proveedor' => 'proveedor', 'vigencia' => 'tarifa valida', 'salidas' => 'salidas']);
     if ($progRows === null) json_error('No encontré la hoja PROGRAMAS. Usa el Excel que se descarga desde el panel.', 400);
     if (count($progRows) > 500) json_error('Demasiadas filas (máximo 500 programas por archivo).', 400);
     $itinRows = px_sheet_rows($sheets, 'ITINERARIO', ['key' => 'id', 'ref' => 'programa', 'day' => 'dia', 'title' => 'titulo', 'desc' => 'descripcion']) ?? [];
     $addRows = px_sheet_rows($sheets, 'OPCIONALES', ['key' => 'id', 'ref' => 'programa', 'name' => 'nombre', 'price' => 'precio']) ?? [];
     $roomRows = px_sheet_rows($sheets, 'HABITACIONES', ['key' => 'id', 'ref' => 'programa', 'label' => 'variante', 'adj' => 'diferencia']) ?? [];
 
+    $depRows = px_sheet_rows($sheets, 'SALIDAS', ['key' => 'id', 'ref' => 'programa', 'date' => 'fecha', 'tier' => 'tarifa', 'usd' => 'precio', 'seats' => 'cupos']) ?? [];
+
     $regions = px_load_regions($mysqli);
+    $operators = px_load_operators($mysqli);
+    $depDb = px_children($mysqli, 'package_departures', 'departs_on, tier, price_usd, seats, note', 'departs_on, tier');
     $pkgs = px_load_packages($mysqli);
     $itinDb = px_children($mysqli, 'package_itinerary_days', 'day_number, title, description', 'sort_order');
     $addDb = px_children($mysqli, 'package_addons', 'name, price_clp', 'sort_order');
@@ -285,6 +328,25 @@ if ($action === 'import' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (mb_strlen($v) > 8000) $e['errors'][] = "\"$lab\" es muy largo (máx. 8000 caracteres).";
             else $add($lab, $col, $v, px_lines($cur[$col]));
         }
+        if ($r['proveedor'] !== '') {
+            $op = $operators[px_norm($r['proveedor'])] ?? null;
+            if (!$op) $e['errors'][] = "Proveedor \"{$r['proveedor']}\" no existe. Elígelo de la lista o créalo antes en Operadores.";
+            else $add('proveedor', 'operator_id', (int) $op['id'], (string) ($existing['operator_id'] ?? ''));
+        }
+        if ($r['usd'] !== '') {
+            $usd = px_money($r['usd']);
+            if ($usd === false || $usd === null || $usd <= 0) $e['errors'][] = "Precio original en USD no válido (\"{$r['usd']}\"): escribe solo el número, por ejemplo 1.199.";
+            else $add('precio original (USD)', 'price_usd', number_format($usd, 2, '.', ''), $existing && $existing['price_usd'] !== null ? number_format((float) $existing['price_usd'], 2, '.', '') : '');
+        }
+        if ($r['vigencia'] !== '') {
+            $vd = px_date($r['vigencia']);
+            if ($vd === false || $vd === null) $e['errors'][] = "Fecha de \"Tarifa válida hasta\" no válida (\"{$r['vigencia']}\"): usa día/mes/año, por ejemplo 31/03/2027.";
+            else $add('tarifa válida hasta', 'tariff_valid_until', $vd, (string) ($existing['tariff_valid_until'] ?? ''));
+        }
+        if ($r['salidas'] !== '') {
+            if (mb_strlen($r['salidas']) > 255) $e['errors'][] = 'El texto de salidas es muy largo (máx. 255).';
+            else $add('salidas (texto)', 'departures_text', trim($r['salidas']), (string) ($existing['departures_text'] ?? ''));
+        }
         if ($r['notes'] !== '') {
             $nv = px_clean($r['notes']);
             if (mb_strlen($nv) > 8000) $e['errors'][] = 'Las notas son muy largas (máx. 8000 caracteres).';
@@ -368,6 +430,28 @@ if ($action === 'import' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($new && $new != $cur) { $childPlans[$k]['room'] = $new; $entries[$k]['changes'][] = 'habitaciones (' . count($new) . ')'; }
     }
 
+    foreach ($group($depRows, 'SALIDAS') as $k => $rows) {
+        $new = []; $seen = [];
+        foreach ($rows as $r) {
+            if ($r['date'] === '') continue;
+            $d = px_date($r['date']);
+            if ($d === false || $d === null) { $entries[$k]['errors'][] = "Salidas, fila {$r['_row']}: la fecha \"{$r['date']}\" no es válida (usa día/mes/año, por ejemplo 07/03/2027)."; continue; }
+            $tier = mb_substr(trim($r['tier']), 0, 60);
+            $usd = $r['usd'] === '' ? null : px_money($r['usd']);
+            if ($usd === false) { $entries[$k]['errors'][] = "Salidas, fila {$r['_row']}: el precio USD no es válido."; continue; }
+            $seats = $r['seats'] === '' ? null : px_int($r['seats']);
+            if ($seats === false || ($seats !== null && $seats < 0)) { $entries[$k]['errors'][] = "Salidas, fila {$r['_row']}: los cupos no son válidos."; continue; }
+            if (isset($seen["$d|$tier"])) continue; // repetida: se ignora
+            $seen["$d|$tier"] = true;
+            $new[] = ['date' => $d, 'tier' => $tier, 'usd' => $usd, 'seats' => $seats];
+        }
+        usort($new, fn($a, $b) => [$a['date'], $a['tier']] <=> [$b['date'], $b['tier']]);
+        if (count($new) > 400) { $entries[$k]['errors'][] = 'Salidas: demasiadas fechas para un programa (máximo 400).'; continue; }
+        $cur = array_map(fn($x) => ['date' => $x['departs_on'], 'tier' => (string) ($x['tier'] ?? ''), 'usd' => $x['price_usd'] !== null ? (float) $x['price_usd'] : null, 'seats' => $x['seats'] !== null ? (int) $x['seats'] : null],
+            $entries[$k]['pkg'] ? ($depDb[$entries[$k]['pkg']['id']] ?? []) : []);
+        if ($new && $new != $cur) { $childPlans[$k]['dep'] = $new; $entries[$k]['changes'][] = 'salidas (' . count($new) . ' fechas' . ($cur ? ', reemplaza las actuales' : '') . ')'; }
+    }
+
     $counts = ['create' => 0, 'update' => 0, 'same' => 0, 'error' => 0];
     foreach ($entries as $k => &$e) {
         if ($e['errors']) { $e['action'] = 'error'; $e['changes'] = []; }
@@ -415,6 +499,14 @@ if ($action === 'import' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $s = $mysqli->prepare('INSERT INTO package_itinerary_days (id, package_id, day_number, title, description, sort_order) VALUES (?,?,?,?,?,?)');
                         $dn = $day['day'] ?? ($i + 1);
                         $s->bind_param('ssissi', $id, $pid, $dn, $day['title'], $html, $i); $s->execute(); $s->close();
+                    }
+                }
+                if (isset($cp['dep'])) {
+                    $d = $mysqli->prepare('DELETE FROM package_departures WHERE package_id = ?'); $d->bind_param('s', $pid); $d->execute(); $d->close();
+                    foreach ($cp['dep'] as $x) {
+                        $tierV = $x['tier'] !== '' ? $x['tier'] : null;
+                        $s = $mysqli->prepare('INSERT IGNORE INTO package_departures (package_id, departs_on, tier, price_usd, seats) VALUES (?,?,?,?,?)');
+                        $s->bind_param('sssdi', $pid, $x['date'], $tierV, $x['usd'], $x['seats']); $s->execute(); $s->close();
                     }
                 }
                 if (isset($cp['add'])) {
