@@ -1,6 +1,13 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+
+  # Producción: siempre por https (no toca /.well-known: validación AutoSSL).
+  RewriteCond %{REQUEST_URI} !^/\.well-known/
+  RewriteCond %{HTTP_HOST} ^app\.travelonline\.cl$ [NC]
+  RewriteCond %{HTTPS} off
+  RewriteRule ^ https://app.travelonline.cl%{REQUEST_URI} [R=301,L]
+
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
