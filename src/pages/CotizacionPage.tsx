@@ -284,7 +284,7 @@ export default function CotizacionPage() {
 
           <div className="crm-section">Detalle y valores</div>
           {form.lines.map((l, i) => (
-            <div key={i} className="mb-2 grid grid-cols-[1fr_200px_auto] items-start gap-2">
+            <div key={i} className="mb-2 grid grid-cols-[1fr_240px_auto] items-start gap-2">
               <div>
                 <input className="crm-field block w-full" placeholder="Servicio (vuelos, hotel…)" disabled={!editable} value={l.title} onChange={(e) => setLine(i, { title: e.target.value })} />
                 <input className="crm-field mt-1 block w-full" placeholder="Detalle" disabled={!editable} value={l.detail} onChange={(e) => setLine(i, { detail: e.target.value })} />
@@ -293,7 +293,7 @@ export default function CotizacionPage() {
                 <div className="flex gap-1">
                   <select
                     className="crm-field"
-                    style={{ width: 66 }}
+                    style={{ width: 92, flex: "none" }}
                     aria-label="Moneda del monto"
                     disabled={!editable || (!fx && l.amountUsd == null)}
                     value={l.amountUsd != null ? "USD" : "CLP"}
