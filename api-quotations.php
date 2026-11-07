@@ -278,9 +278,10 @@ if ($action === 'new_version' && $method === 'POST') {
         includes_text, excludes_text, flights_text, flights_json, itinerary_json, itinerary_package_id, fx_usd_clp, fx_date, fx_manual, valid_until, promised_at, change_reason, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
     $itinCopy = $last['itinerary'] ? json_encode($last['itinerary'], JSON_UNESCAPED_UNICODE) : null;
     $flightsCopy = $last['flights'] ? json_encode($last['flights'], JSON_UNESCAPED_UNICODE) : null;
+    $fxManualCopy = $last['fxManualRate'] !== null ? 1 : 0; // bind_param exige variables, no expresiones
     $promised = date('Y-m-d', strtotime('+1 day')); // regla: el cambio pedido por el cliente sale al día siguiente
     $s->bind_param('iissisisissssssssissss', $quotation['id'], $next, $last['title'], $last['subtitle'], $last['pax'], $json, $last['discountClp'],
-        $last['discountLabel'], $last['totalClp'], $last['includesText'], $last['excludesText'], $last['flightsText'], $flightsCopy, $itinCopy, $last['itineraryPackageId'], $last['fxUsdClp'], $last['fxDate'], $last['fxManualRate'] !== null ? 1 : 0, $valid, $promised, $reason, $userId);
+        $last['discountLabel'], $last['totalClp'], $last['includesText'], $last['excludesText'], $last['flightsText'], $flightsCopy, $itinCopy, $last['itineraryPackageId'], $last['fxUsdClp'], $last['fxDate'], $fxManualCopy, $valid, $promised, $reason, $userId);
     $s->execute();
     $newVersionId = $mysqli->insert_id;
     $s->close();
