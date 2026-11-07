@@ -17,11 +17,13 @@ import {
   Radio,
   Heart,
   BarChart3,
+  HelpCircle,
 } from "lucide-react";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { CrmProvider, useCrm } from "@/contexts/CrmContext";
 import { useTheme } from "@/lib/theme";
 import { KpiPanel } from "@/components/crm/KpiPanel";
+import { AyudaPanel } from "@/components/AyudaPanel";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Super admin",
@@ -56,6 +58,7 @@ function Shell() {
   const { counts } = useCrm();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => setMenuOpen(false), [location.pathname]);
   if (!user) return null;
@@ -166,6 +169,9 @@ function Shell() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-1 border-t border-white/10 pt-3">
+        <button type="button" onClick={() => { setHelpOpen(true); setMenuOpen(false); }} className={item({ isActive: false })}>
+          <HelpCircle size={16} /> Ayuda
+        </button>
         <button type="button" onClick={toggle} className={item({ isActive: false })}>
           {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           {theme === "dark" ? "Modo claro" : "Modo oscuro"}
@@ -180,6 +186,7 @@ function Shell() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
+      {helpOpen && <AyudaPanel path={location.pathname} userName={user.name || user.email} onClose={() => setHelpOpen(false)} />}
       {/* Barra lateral fija en escritorio */}
       <div className="hidden lg:flex">{sidebar}</div>
 

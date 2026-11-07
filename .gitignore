@@ -18,3 +18,7 @@ npm-debug.log*
 .pnpm-debug.log*
 *.tsbuildinfo
 /mail-outbox/
+
+# Variables locales de compilación (p. ej. correo de soporte del panel de ayuda): no se suben
+.env.local
+.env.*.local

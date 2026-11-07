@@ -5,6 +5,7 @@
 require_once __DIR__ . '/inc/json.php';
 require_once __DIR__ . '/inc/auth.php';
 require_once __DIR__ . '/inc/quote_email.php';
+require_once __DIR__ . '/inc/fx.php';
 install_json_error_handlers();
 
 $session = require_auth('quotes:view');
@@ -29,13 +30,17 @@ function version_row_to_json(array $r, int $number): array {
         'discountClp' => (int) $r['discount_clp'], 'discountLabel' => $r['discount_label'], 'totalClp' => (int) $r['total_clp'],
         'includesText' => $r['includes_text'], 'excludesText' => $r['excludes_text'], 'validUntil' => $r['valid_until'],
         'flightsText' => $r['flights_text'] ?? null, 'itinerary' => json_decode($r['itinerary_json'] ?? '[]', true) ?: [],
+        'flights' => json_decode($r['flights_json'] ?? '[]', true) ?: [],
+        'fxUsdClp' => isset($r['fx_usd_clp']) && $r['fx_usd_clp'] !== null ? (float) $r['fx_usd_clp'] : null, 'fxDate' => $r['fx_date'] ?? null,
+        'fxManualRate' => !empty($r['fx_manual']) && isset($r['fx_usd_clp']) ? (float) $r['fx_usd_clp'] : null,
+        'itineraryPackageId' => $r['itinerary_package_id'] ?? null, 'itineraryPackageTitle' => $r['itinerary_package_title'] ?? null,
         'promisedAt' => $r['promised_at'],
         'changeReason' => $r['change_reason'], 'createdAt' => $r['created_at'], 'updatedAt' => $r['updated_at'], 'sentAt' => $r['sent_at'],
         'createdByName' => $r['created_by_name'] ?? null,
     ];
 }
 
-const VERSION_SELECT = 'SELECT v.*, u.name AS created_by_name FROM quotation_versions v LEFT JOIN users u ON u.id = v.created_by';
+const VERSION_SELECT = 'SELECT v.*, u.name AS created_by_name, sp.title AS itinerary_package_title FROM quotation_versions v LEFT JOIN users u ON u.id = v.created_by LEFT JOIN packages sp ON sp.id = v.itinerary_package_id';
 
 function load_quotation(mysqli $m, int $requestId): ?array {
     $s = $m->prepare('SELECT q.id, q.request_id, q.number, p.id AS package_id, p.status AS package_status
@@ -56,33 +61,71 @@ function load_quotation(mysqli $m, int $requestId): ?array {
         'packageId' => $q['package_id'], 'packageStatus' => $q['package_status']];
 }
 
-// Limpia y valida las líneas; devuelve [líneas, total].
-function clean_lines($raw, $discount): array {
+// Limpia y valida las líneas; devuelve [líneas, total, usaDolares]. Una línea con amountUsd se calcula en pesos con el
+// tipo de cambio del sistema (el mismo de los precios de paquetes: dólar observado + ajuste, o el manual) y su redondeo.
+function clean_lines($raw, $discount, ?array $fx = null): array {
     if (!is_array($raw)) json_error('Líneas inválidas', 400);
     $lines = [];
     $subtotal = 0;
+    $usesUsd = false;
     foreach (array_slice($raw, 0, 40) as $l) {
         if (!is_array($l)) continue;
         $title = trim((string) ($l['title'] ?? ''));
         if ($title === '') continue;
-        $amount = max(0, (int) round((float) ($l['amountClp'] ?? 0)));
-        $lines[] = ['title' => mb_substr($title, 0, 190), 'detail' => mb_substr(trim((string) ($l['detail'] ?? '')), 0, 500), 'amountClp' => $amount];
+        $usd = max(0, round((float) ($l['amountUsd'] ?? 0), 2));
+        $row = ['title' => mb_substr($title, 0, 190), 'detail' => mb_substr(trim((string) ($l['detail'] ?? '')), 0, 500)];
+        if ($usd > 0) {
+            if (!$fx || !$fx['rate']) json_error('No hay tipo de cambio disponible para calcular los montos en dólares. Escribe el monto en pesos o avisa a Julio.', 409);
+            $step = max(1, (int) $fx['step']);
+            $amount = (int) (round($usd * $fx['rate'] / $step) * $step);
+            $row['amountUsd'] = $usd;
+            $usesUsd = true;
+        } else {
+            $amount = max(0, (int) round((float) ($l['amountClp'] ?? 0)));
+        }
+        $row['amountClp'] = $amount;
+        $lines[] = $row;
         $subtotal += $amount;
     }
     if (!$lines) json_error('Agrega al menos una línea con descripción', 400);
     $disc = max(0, (int) round((float) $discount));
     if ($disc > $subtotal) json_error('El descuento no puede superar el subtotal', 400);
-    return [$lines, $subtotal - $disc];
+    return [$lines, $subtotal - $disc, $usesUsd];
 }
 
-// Itinerario por días: [{title, detail}]. Se descartan los días vacíos; máx. 60 días.
+// Vuelos pegados desde el portal: se guardan como datos (no como imagen) para poder mostrarlos ordenados en el PDF.
+function clean_flights($raw): array {
+    if (!is_array($raw)) return [];
+    $str = fn($v, int $n) => mb_substr(trim((string) $v), 0, $n);
+    $date = fn($v) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $v) ? (string) $v : '';
+    $time = fn($v) => preg_match('/^\d{1,2}:\d{2}$/', (string) $v) ? (string) $v : '';
+    $out = [];
+    foreach (array_slice($raw, 0, 20) as $f) {
+        if (!is_array($f)) continue;
+        $b = is_array($f['baggage'] ?? null) ? $f['baggage'] : [];
+        $row = [
+            'airline' => $str($f['airline'] ?? '', 60), 'flightNo' => $str($f['flightNo'] ?? '', 12),
+            'fromCity' => $str($f['fromCity'] ?? '', 80), 'fromCode' => strtoupper($str($f['fromCode'] ?? '', 3)),
+            'departDate' => $date($f['departDate'] ?? ''), 'departTime' => $time($f['departTime'] ?? ''),
+            'toCity' => $str($f['toCity'] ?? '', 80), 'toCode' => strtoupper($str($f['toCode'] ?? '', 3)),
+            'arriveDate' => $date($f['arriveDate'] ?? ''), 'arriveTime' => $time($f['arriveTime'] ?? ''),
+            'duration' => $str($f['duration'] ?? '', 20), 'stops' => $str($f['stops'] ?? '', 10), 'cabin' => $str($f['cabin'] ?? '', 60),
+            'baggage' => ['hand' => !empty($b['hand']), 'cabin' => !empty($b['cabin']), 'hold' => !empty($b['hold'])],
+            'holdKg' => $str($f['holdKg'] ?? '', 20),
+        ];
+        if ($row['fromCode'] === '' && $row['toCode'] === '' && $row['flightNo'] === '') continue;
+        $out[] = $row;
+    }
+    return $out;
+}
+
 function clean_itinerary($raw): array {
     if (!is_array($raw)) return [];
     $days = [];
     foreach (array_slice($raw, 0, 60) as $d) {
         if (!is_array($d)) continue;
         $title = mb_substr(trim((string) ($d['title'] ?? '')), 0, 190);
-        $detail = mb_substr(trim((string) ($d['detail'] ?? '')), 0, 3000);
+        $detail = mb_substr(trim((string) ($d['detail'] ?? '')), 0, 20000);
         if ($title === '' && $detail === '') continue;
         $days[] = ['title' => $title, 'detail' => $detail];
     }
@@ -90,7 +133,21 @@ function clean_itinerary($raw): array {
 }
 
 function save_fields(mysqli $m, int $versionId, array $in): void {
-    [$lines, $total] = clean_lines($in['lines'] ?? null, $in['discountClp'] ?? 0);
+    $fxSet = null;
+    foreach (is_array($in['lines'] ?? null) ? $in['lines'] : [] as $l) { if (is_array($l) && (float) ($l['amountUsd'] ?? 0) > 0) { $fxSet = pricing_settings($m); break; } }
+    $manualIn = round((float) ($in['fxManualRate'] ?? 0), 2);
+    if ($manualIn > 0 && ($manualIn < 100 || $manualIn > 5000)) json_error('El dólar que escribiste no parece válido (debe estar entre $100 y $5.000).', 400);
+    if ($fxSet && $manualIn > 0) $fxSet['rate'] = $manualIn;
+    [$lines, $total, $usesUsd] = clean_lines($in['lines'] ?? null, $in['discountClp'] ?? 0, $fxSet);
+    // Dólar propio de quien cotiza (opcional): reemplaza al automático solo en esta cotización.
+    $manual = round((float) ($in['fxManualRate'] ?? 0), 2);
+    if ($manual > 0 && ($manual < 100 || $manual > 5000)) json_error('El dólar que escribiste no parece válido (debe estar entre $100 y $5.000).', 400);
+    $useManual = $usesUsd && $manual > 0;
+    $fxRate = $usesUsd ? ($useManual ? $manual : $fxSet['rate']) : null;
+    $fxDate = $usesUsd ? ($useManual ? date('Y-m-d') : ($fxSet['observed']['date'] ?: date('Y-m-d'))) : null;
+    $fxManual = $useManual ? 1 : 0;
+    $flightRows = clean_flights($in['flights'] ?? []);
+    $flightsJson = $flightRows ? json_encode($flightRows, JSON_UNESCAPED_UNICODE) : null;
     $title = mb_substr(trim((string) ($in['title'] ?? '')), 0, 255);
     $subtitle = mb_substr(trim((string) ($in['subtitle'] ?? '')), 0, 255) ?: null;
     $pax = max(1, (int) ($in['pax'] ?? 1));
@@ -105,9 +162,19 @@ function save_fields(mysqli $m, int $versionId, array $in): void {
     $flights = mb_substr(trim((string) ($in['flightsText'] ?? '')), 0, 4000) ?: null;
     $days = clean_itinerary($in['itinerary'] ?? []);
     $itinJson = $days ? json_encode($days, JSON_UNESCAPED_UNICODE) : null;
+    // Paquete del catálogo del que se cargó el itinerario (trazabilidad). Solo se conserva si hay días y el paquete existe.
+    $srcPkg = null;
+    $rawSrc = (string) ($in['itineraryPackageId'] ?? '');
+    if ($days && preg_match('/^[0-9a-f-]{36}$/i', $rawSrc)) {
+        $c = $m->prepare('SELECT 1 FROM packages WHERE id = ?');
+        $c->bind_param('s', $rawSrc);
+        $c->execute();
+        if ($c->get_result()->num_rows > 0) $srcPkg = $rawSrc;
+        $c->close();
+    }
     $s = $m->prepare('UPDATE quotation_versions SET title=?, subtitle=?, pax=?, lines_json=?, discount_clp=?, discount_label=?, total_clp=?,
-        includes_text=?, excludes_text=?, flights_text=?, itinerary_json=?, valid_until=?, change_reason=?, promised_at=? WHERE id=?');
-    $s->bind_param('ssisisisssssssi', $title, $subtitle, $pax, $json, $disc, $discLabel, $total, $inc, $exc, $flights, $itinJson, $valid, $reason, $promised, $versionId);
+        includes_text=?, excludes_text=?, flights_text=?, flights_json=?, itinerary_json=?, itinerary_package_id=?, fx_usd_clp=?, fx_date=?, fx_manual=?, valid_until=?, change_reason=?, promised_at=? WHERE id=?');
+    $s->bind_param('ssisisissssssssisssi', $title, $subtitle, $pax, $json, $disc, $discLabel, $total, $inc, $exc, $flights, $flightsJson, $itinJson, $srcPkg, $fxRate, $fxDate, $fxManual, $valid, $reason, $promised, $versionId);
     $s->execute();
     $s->close();
 }
@@ -208,11 +275,12 @@ if ($action === 'new_version' && $method === 'POST') {
     $valid = date('Y-m-d', strtotime('+' . VALID_DAYS . ' days'));
     $json = json_encode($last['lines'], JSON_UNESCAPED_UNICODE);
     $s = $mysqli->prepare("INSERT INTO quotation_versions (quotation_id, version, title, subtitle, pax, lines_json, discount_clp, discount_label, total_clp,
-        includes_text, excludes_text, flights_text, itinerary_json, valid_until, promised_at, change_reason, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+        includes_text, excludes_text, flights_text, flights_json, itinerary_json, itinerary_package_id, fx_usd_clp, fx_date, fx_manual, valid_until, promised_at, change_reason, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
     $itinCopy = $last['itinerary'] ? json_encode($last['itinerary'], JSON_UNESCAPED_UNICODE) : null;
+    $flightsCopy = $last['flights'] ? json_encode($last['flights'], JSON_UNESCAPED_UNICODE) : null;
     $promised = date('Y-m-d', strtotime('+1 day')); // regla: el cambio pedido por el cliente sale al día siguiente
-    $s->bind_param('iissisisissssssss', $quotation['id'], $next, $last['title'], $last['subtitle'], $last['pax'], $json, $last['discountClp'],
-        $last['discountLabel'], $last['totalClp'], $last['includesText'], $last['excludesText'], $last['flightsText'], $itinCopy, $valid, $promised, $reason, $userId);
+    $s->bind_param('iissisisissssssssissss', $quotation['id'], $next, $last['title'], $last['subtitle'], $last['pax'], $json, $last['discountClp'],
+        $last['discountLabel'], $last['totalClp'], $last['includesText'], $last['excludesText'], $last['flightsText'], $flightsCopy, $itinCopy, $last['itineraryPackageId'], $last['fxUsdClp'], $last['fxDate'], $last['fxManualRate'] !== null ? 1 : 0, $valid, $promised, $reason, $userId);
     $s->execute();
     $newVersionId = $mysqli->insert_id;
     $s->close();
@@ -229,13 +297,8 @@ function slugify_es(string $t): string {
 // Copia una versión al catálogo como paquete en BORRADOR (el sitio público solo muestra los publicados).
 // Se copia lo que sirve para reutilizar: título, incluye/no incluye e itinerario por días. No se copian
 // precio, pasajeros, fechas ni vuelos: son del cliente, no del programa.
-if ($action === 'to_package' && $method === 'POST') {
-    require_auth('packages:edit');
-    $v = find_version($mysqli, (int) ($_GET['versionId'] ?? 0));
-    $quotation = load_quotation($mysqli, (int) $v['request_id']);
-    if ($quotation['packageId']) json_error('Esta cotización ya se guardó como paquete', 409);
-
-    $title = trim((string) $v['title']) ?: 'Programa ' . $quotation['number'];
+/** Crea un paquete en BORRADOR con el itinerario, incluye/no incluye y título de la versión. Devuelve el id del paquete. */
+function create_draft_package(mysqli $mysqli, array $v, string $title, string $userId): string {
     $days = json_decode($v['itinerary_json'] ?? '[]', true) ?: [];
     $slug = slugify_es($title);
     for ($i = 2; ; $i++) {
@@ -247,8 +310,6 @@ if ($action === 'to_package' && $method === 'POST') {
         if (!$taken) break;
         $slug = slugify_es($title) . "-$i";
     }
-
-    $mysqli->begin_transaction();
     $pid = new_uuid();
     $subtitle = $v['subtitle'] ?: null;
     $nDays = count($days) ?: null;
@@ -269,6 +330,18 @@ if ($action === 'to_package' && $method === 'POST') {
         $s->execute();
         $s->close();
     }
+    return $pid;
+}
+
+if ($action === 'to_package' && $method === 'POST') {
+    require_auth('packages:edit');
+    $v = find_version($mysqli, (int) ($_GET['versionId'] ?? 0));
+    $quotation = load_quotation($mysqli, (int) $v['request_id']);
+    if ($quotation['packageId']) json_error('Esta cotización ya se guardó como paquete', 409);
+
+    $title = trim((string) $v['title']) ?: 'Programa ' . $quotation['number'];
+    $mysqli->begin_transaction();
+    $pid = create_draft_package($mysqli, $v, $title, $userId);
     $s = $mysqli->prepare('UPDATE quotations SET package_id = ? WHERE id = ?');
     $s->bind_param('si', $pid, $quotation['id']);
     $s->execute();
@@ -276,6 +349,66 @@ if ($action === 'to_package' && $method === 'POST') {
     log_quote_activity($mysqli, (int) $v['request_id'], $userId, 'sistema', 'Cotización ' . version_label((int) $v['number'], (int) $v['version']) . " guardada como paquete en borrador: $title", (int) $v['id']);
     $mysqli->commit();
     json_ok(['packageId' => $pid, 'quotation' => load_quotation($mysqli, (int) $v['request_id'])]);
+}
+
+// Guarda el itinerario actual como un paquete NUEVO en borrador (variante), aunque la cotización ya se haya guardado antes.
+// No cambia el vínculo de la cotización con su paquete. El nombre lo pone quien guarda, para distinguir variantes.
+if ($action === 'save_variant' && $method === 'POST') {
+    require_auth('packages:edit');
+    $v = find_version($mysqli, (int) ($_GET['versionId'] ?? 0));
+    $days = json_decode($v['itinerary_json'] ?? '[]', true) ?: [];
+    if (!$days) json_error('Esta versión no tiene itinerario para guardar', 409);
+    $title = mb_substr(trim((string) (json_body()['title'] ?? '')), 0, 200);
+    if ($title === '') json_error('Escribe un nombre para el nuevo itinerario', 400);
+    $mysqli->begin_transaction();
+    $pid = create_draft_package($mysqli, $v, $title, $userId);
+    log_quote_activity($mysqli, (int) $v['request_id'], $userId, 'sistema', 'Itinerario guardado como paquete nuevo en borrador: ' . $title, (int) $v['id']);
+    $mysqli->commit();
+    json_ok(['packageId' => $pid]);
+}
+
+// Catálogo de itinerarios para el selector: paquetes publicados y en borrador que tengan días. Se filtra en el navegador.
+// "keywords" son los títulos de los días (ciudades de la ruta) para poder buscar por ciudad sin enviar todo el texto.
+if ($action === 'catalog' && $method === 'GET') {
+    require_auth('quotes:edit');
+    $mysqli->query('SET SESSION group_concat_max_len = 6000');
+    $res = $mysqli->query("SELECT p.id, p.title, p.status, r.name AS region,
+            (SELECT COUNT(*) FROM package_itinerary_days d WHERE d.package_id = p.id) AS days,
+            (SELECT GROUP_CONCAT(d.title ORDER BY d.sort_order SEPARATOR ' | ') FROM package_itinerary_days d WHERE d.package_id = p.id) AS keywords
+        FROM packages p LEFT JOIN regions r ON r.id = p.region_id
+        WHERE p.status IN ('published','draft') HAVING days > 0
+        ORDER BY (p.status = 'published') DESC, r.name, p.title");
+    $out = [];
+    while ($r = $res->fetch_assoc()) {
+        $out[] = ['id' => $r['id'], 'title' => $r['title'], 'status' => $r['status'], 'region' => $r['region'], 'days' => (int) $r['days'], 'keywords' => (string) $r['keywords']];
+    }
+    json_ok(['packages' => $out]);
+}
+
+if ($action === 'catalog_itinerary' && $method === 'GET') {
+    require_auth('quotes:edit');
+    $pid = (string) ($_GET['packageId'] ?? '');
+    $s = $mysqli->prepare('SELECT title, included, not_included, price_usd, duration_days FROM packages WHERE id = ?');
+    $s->bind_param('s', $pid);
+    $s->execute();
+    $p = $s->get_result()->fetch_assoc();
+    $s->close();
+    if (!$p) json_error('Paquete no encontrado', 404);
+    $s = $mysqli->prepare('SELECT day_number, title, description FROM package_itinerary_days WHERE package_id = ? ORDER BY sort_order');
+    $s->bind_param('s', $pid);
+    $s->execute();
+    $res = $s->get_result();
+    $days = [];
+    while ($r = $res->fetch_assoc()) {
+        $n = $r['day_number'] !== null ? (int) $r['day_number'] : count($days) + 1;
+        $t = trim((string) $r['title']);
+        $days[] = ['title' => mb_substr($t !== '' ? "Día $n · $t" : "Día $n", 0, 190), 'detail' => (string) $r['description']];
+    }
+    $s->close();
+    json_ok(['title' => $p['title'], 'days' => $days,
+        'includes' => trim((string) $p['included']) ?: null, 'excludes' => trim((string) $p['not_included']) ?: null,
+        'priceUsd' => $p['price_usd'] !== null ? (float) $p['price_usd'] : null,
+        'durationDays' => $p['duration_days'] !== null ? (int) $p['duration_days'] : null]);
 }
 
 // Congela la versión y mueve la solicitud a "Cotización enviada".
@@ -290,6 +423,7 @@ function mark_version_sent(mysqli $m, array $v, string $userId, string $activity
     $s->bind_param('i', $rid);
     $s->execute();
     $s->close();
+    if (!empty($v['fx_usd_clp'])) $activityText .= (!empty($v['fx_manual']) ? ' · montos en USD calculados con un dólar ingresado manualmente de $' : ' · montos en USD calculados al dólar de $') . number_format((float) $v['fx_usd_clp'], 2, ',', '.') . ($v['fx_date'] ? ' (' . $v['fx_date'] . ')' : '');
     log_quote_activity($m, $rid, $userId, 'estado', $activityText, (int) $v['id']);
 }
 

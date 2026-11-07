@@ -5,6 +5,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useAuth, can } from "@/contexts/AuthContext";
 import { BRAND_LABEL, clp, fecha, fechaLarga } from "@/lib/crm";
 import type { QuotationPrint } from "@/lib/types";
+import { equipajeTexto, fechaCorta } from "@/lib/vuelos";
 
 // Datos reales de la empresa (mismos del pie de página del sitio público).
 const EMPRESA = {
@@ -58,6 +59,10 @@ const CSS = `
 .pdf-itin { margin-top: 20px; background: #fff; border: 1px solid #e3e7ee; border-radius: 14px; padding: 14px 18px }
 .pdf-itin h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #2d4874 }
 .pdf-flights { background: #eef2f7; border-radius: 10px; padding: 9px 12px; font-size: 12.5px; line-height: 1.5; white-space: pre-line; margin-bottom: 8px }
+.pdf-fl { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11.5px; line-height: 1.4 }
+.pdf-fl th { text-align: left; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: #2d4874; border-bottom: 1px solid #c9d3e2; padding: 3px 6px 3px 0 }
+.pdf-fl td { vertical-align: top; padding: 5px 6px 5px 0; border-bottom: 1px solid #dde4ef }
+.pdf-flights:has(.pdf-fl) { white-space: normal }
 .pdf-day { margin-top: 9px; break-inside: avoid; border-left: 3px solid #dab9b1; padding-left: 12px }
 .pdf-day b { display: block; font-size: 13px; color: #2d4874 }
 .pdf-day p { margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; white-space: pre-line }
@@ -251,10 +256,31 @@ export default function CotizacionPdfPage() {
             </div>
           )}
 
-          {(v.itinerary.length > 0 || v.flightsText) && (
+          {(v.itinerary.length > 0 || v.flightsText || v.flights.length > 0) && (
             <div className="pdf-itin">
               <h4>Itinerario de viaje</h4>
-              {v.flightsText && <div className="pdf-flights"><b>Vuelos</b>{"\n"}{v.flightsText}</div>}
+              {v.flights.length > 0 && (
+                <div className="pdf-flights">
+                  <b>Vuelos</b>
+                  <table className="pdf-fl">
+                    <thead><tr><th>Vuelo</th><th>Salida</th><th>Llegada</th><th>Duración</th><th>Clase</th><th>Equipaje</th></tr></thead>
+                    <tbody>
+                      {v.flights.map((f, i) => (
+                        <tr key={i}>
+                          <td><b>{[f.airline, f.flightNo].filter(Boolean).join(" ")}</b></td>
+                          <td>{f.fromCity} <b>{f.fromCode}</b><br />{fechaCorta(f.departDate)} · {f.departTime}</td>
+                          <td>{f.toCity} <b>{f.toCode}</b><br />{fechaCorta(f.arriveDate)} · {f.arriveTime}</td>
+                          <td>{f.duration}{f.stops && f.stops !== "0" ? ` · ${f.stops} parada${f.stops === "1" ? "" : "s"}` : f.stops === "0" ? " · directo" : ""}</td>
+                          <td>{f.cabin}</td>
+                          <td>{equipajeTexto(f)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {v.flightsText && <div style={{ marginTop: 6 }}>{v.flightsText}</div>}
+                </div>
+              )}
+              {v.flights.length === 0 && v.flightsText && <div className="pdf-flights"><b>Vuelos</b>{"\n"}{v.flightsText}</div>}
               {v.itinerary.map((d, i) => (
                 <div key={i} className="pdf-day">
                   <b>{d.title}</b>

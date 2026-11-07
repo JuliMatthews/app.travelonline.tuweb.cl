@@ -350,7 +350,7 @@ export type ClientDetail = {
 };
 
 export type ItineraryDay = { title: string; detail: string };
-export type QuotationLine = { title: string; detail: string; amountClp: number };
+export type QuotationLine = { title: string; detail: string; amountClp: number; amountUsd?: number | null };
 
 export type QuotationVersion = {
   id: number;
@@ -368,6 +368,13 @@ export type QuotationVersion = {
   excludesText: string | null;
   flightsText: string | null;
   itinerary: ItineraryDay[];
+  itineraryPackageId: string | null;
+  itineraryPackageTitle: string | null;
+  flights: import("@/lib/vuelos").Flight[];
+  fxUsdClp: number | null;
+  fxDate: string | null;
+  /** Dólar escrito a mano para esta cotización (null = se usa el automático del sistema). */
+  fxManualRate: number | null;
   validUntil: string | null;
   promisedAt: string | null;
   changeReason: string | null;
