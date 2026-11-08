@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plane, Plus, Trash2 } from "lucide-react";
 import { AIRLINES, emptyFlight, htmlTableToText, parseFlights, type Flight } from "@/lib/vuelos";
 
 // Vuelos de la cotización: se pega la tabla copiada del portal y queda como datos; lo que no se puede copiar
@@ -27,7 +27,14 @@ export function VuelosEditor({ flights, editable, onChange }: { flights: Flight[
         <p className="text-[12.5px] font-semibold">Vuelos</p>
         {editable && !open && (
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="crm-btn" onClick={() => setOpen(true)}>Pegar tabla de vuelos</button>
+            <button
+              type="button"
+              className="crm-btn"
+              style={{ borderColor: "#f59a3c", borderWidth: 2, fontWeight: 600 }}
+              onClick={() => setOpen(true)}
+            >
+              <Plane size={15} style={{ color: "#f59a3c" }} /> Pegar tabla de vuelos
+            </button>
             <button type="button" className="crm-btn" onClick={() => onChange([...flights, emptyFlight()])}><Plus size={14} /> Agregar vuelo</button>
             {flights.length > 0 && (
               <button
