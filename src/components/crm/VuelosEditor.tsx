@@ -100,7 +100,7 @@ export function VuelosEditor({ flights, editable, onChange }: { flights: Flight[
       {flights.length === 0 && !editable && <p className="text-[12.5px] text-[color:var(--muted)]">Esta versión no tiene vuelos en tabla.</p>}
       {flights.map((f, i) => (
         <div key={i} className="mb-2 rounded-lg border border-[var(--border)] p-2 text-[12.5px]">
-          <div className="grid gap-2 md:grid-cols-[1.2fr_90px_1.4fr_70px_120px_90px]">
+          <div className="grid gap-2 md:grid-cols-[1.05fr_90px_1.25fr_70px_150px_140px]">
             <input className={inp} list="aerolineas" placeholder="Aerolínea" disabled={!editable} value={f.airline} onChange={(e) => patch(i, { airline: e.target.value })} />
             <input className={inp} placeholder="N° vuelo" disabled={!editable} value={f.flightNo} onChange={(e) => patch(i, { flightNo: e.target.value })} />
             <input className={inp} placeholder="Ciudad de salida" disabled={!editable} value={f.fromCity} onChange={(e) => patch(i, { fromCity: e.target.value })} />
@@ -108,7 +108,7 @@ export function VuelosEditor({ flights, editable, onChange }: { flights: Flight[
             <input className={inp} type="date" disabled={!editable} value={f.departDate} onChange={(e) => patch(i, { departDate: e.target.value })} />
             <input className={inp} type="time" disabled={!editable} value={f.departTime} onChange={(e) => patch(i, { departTime: e.target.value })} />
           </div>
-          <div className="mt-1 grid gap-2 md:grid-cols-[1.2fr_90px_1.4fr_70px_120px_90px]">
+          <div className="mt-1 grid gap-2 md:grid-cols-[1.05fr_90px_1.25fr_70px_150px_140px]">
             <span className="self-center text-[color:var(--muted)]">Llegada →</span>
             <span />
             <input className={inp} placeholder="Ciudad de llegada" disabled={!editable} value={f.toCity} onChange={(e) => patch(i, { toCity: e.target.value })} />
