@@ -61,9 +61,14 @@ export function VuelosEditor({ flights, editable, onChange }: { flights: Flight[
             value={text}
             onChange={(e) => setText(e.target.value)}
             onPaste={(e) => {
+              // Prueba las dos versiones del portapapeles (tabla HTML y texto plano) y se queda con la que sí contiene vuelos.
               const html = e.clipboardData.getData("text/html");
+              const plain = e.clipboardData.getData("text/plain");
               const fromTable = html ? htmlTableToText(html) : null;
-              if (fromTable) { e.preventDefault(); setText(fromTable); }
+              const n = (t: string | null) => (t ? parseFlights(t).flights.length : 0);
+              const candidatos = [fromTable, plain].filter((t): t is string => !!t);
+              const mejor = candidatos.sort((a, b) => n(b) - n(a))[0];
+              if (mejor && mejor !== plain) { e.preventDefault(); setText(mejor); }
             }}
           />
           {parsed && parsed.warnings.map((w, i) => <p key={i} className="mt-1 text-[13px] text-[color:var(--risk)]">{w}</p>)}

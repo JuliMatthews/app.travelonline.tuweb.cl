@@ -39,8 +39,11 @@ export function htmlTableToText(html: string): string | null {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const rows = Array.from(doc.querySelectorAll("tr"));
   if (rows.length === 0) return null;
+  // textContent ignora los <br> y los bloques (div, p…): sin esto «Santiago de Chile<br>SCL<br>Vie, 12 Mar» queda pegado.
+  doc.querySelectorAll("br").forEach((b) => b.replaceWith("\n"));
+  doc.querySelectorAll("div,p,li,span,b,strong,small").forEach((e) => e.append(" "));
   return rows
-    .map((tr) => Array.from(tr.querySelectorAll("th,td")).map((c) => (c.textContent ?? "").replace(/\s+/g, " ").trim()).join("\t"))
+    .map((tr) => Array.from(tr.querySelectorAll("th,td")).map((c) => (c.textContent ?? "").replace(/[ \t\u00a0]+/g, " ").replace(/ ?\n ?/g, "\n").replace(/\n+/g, "\n").trim()).join("\t"))
     .join("\n");
 }
 
@@ -85,7 +88,7 @@ export function parseTail(rest: string[]) {
 export type ParseFlightsResult = { flights: Flight[]; warnings: string[] };
 
 /** `today` y `yearOverride` permiten fijar el año (la tabla trae «03 Ene» sin año). */
-export function parseFlights(text: string, opts: { today?: Date; yearOverride?: number | null } = {}): ParseFlightsResult {
+function parseFlightsCore(text: string, opts: { today?: Date; yearOverride?: number | null } = {}): ParseFlightsResult {
   const warnings: string[] = [];
   const matches = Array.from(text.matchAll(CELL));
   if (matches.length < 2) return { flights: [], warnings: ["No encontré vuelos. Copia la tabla completa del portal (con las columnas Salida y Llegada) y pégala de nuevo."] };
@@ -132,6 +135,33 @@ export function parseFlights(text: string, opts: { today?: Date; yearOverride?: 
     });
   }
   return { flights, warnings };
+}
+
+/** Algunos portales/navegadores entregan la tabla con las celdas pegadas, sin tabulaciones ni saltos
+ *  («Santiago de ChileSCLVie, 12 Mar11:45Estambul…»). Vuelve a separar las celdas por sus límites conocidos. */
+export function desglosar(text: string): string {
+  const U = "A-ZÁÉÍÓÚÑ";
+  const l = "a-záéíóúñü";
+  return text
+    .replace(/\bremover\b|(?<=[a-z])remover/gi, "\n")
+    .replace(new RegExp(`([${l}.])([A-Z]{3})(?=[${U}][${l}]{2},)`, "g"), "$1\t$2") // ciudad|código
+    .replace(new RegExp(`([A-Z]{3})(?=[${U}][${l}]{2},)`, "g"), "$1\t") // código|día
+    .replace(/(\d{1,2}\s+[A-Za-zñÑ]{3}\.?)(\d{1,2}:\d{2})/g, "$1\t$2") // fecha|hora
+    .replace(new RegExp(`(\\d{1,2}:\\d{2})(?=[${U}][${l}])`, "g"), "$1\t") // hora|ciudad de llegada
+    .replace(/(\d{1,2}:\d{2})(?=\d{1,2}h)/g, "$1\t") // hora|duración
+    .replace(/(\d{1,2}h\s*:?\s*\d{1,2}\s*m)\s*([0-9A-Z]{3})\s*(\d*)\s*(\+\d)?\s*(\d)\s*(SI|SÍ|NO)/g,
+      (_m, d, av, st, plus, seats, sur) => `${d}\t${av}\t${st ? st + "\t" : ""}${plus ? plus + "\t" : ""}${seats}\t${sur}\t`) // duración|avión|paradas|asientos|surface
+    .replace(new RegExp(`(\\t[${U}]{2})(?=[${U}][${l}])`, "g"), "$1\t") // familia|clase
+    .replace(new RegExp(`([${l}])(?=Incluye|No incluye)`, "g"), "$1\t")
+    .replace(new RegExp(`([${l}])\\s*(?=\\d{2,4}[${U}][${l}])`, "g"), "$1\n"); // fin de fila|nº de vuelo
+}
+
+/** Lee la tabla; si no encuentra vuelos, reintenta separando las celdas pegadas. */
+export function parseFlights(text: string, opts: { today?: Date; yearOverride?: number | null } = {}): ParseFlightsResult {
+  const r = parseFlightsCore(text, opts);
+  if (r.flights.length > 0) return r;
+  const r2 = parseFlightsCore(desglosar(text), opts);
+  return r2.flights.length > 0 ? r2 : r;
 }
 
 export const emptyFlight = (): Flight => ({
