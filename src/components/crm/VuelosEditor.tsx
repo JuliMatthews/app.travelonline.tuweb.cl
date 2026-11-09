@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plane, Plus, Trash2 } from "lucide-react";
-import { AIRLINES, emptyFlight, htmlTableToText, parseFlights, type Flight } from "@/lib/vuelos";
+import { AIRLINES, emptyFlight, equipajeTexto, htmlTableToText, parseFlights, type Flight } from "@/lib/vuelos";
 
 // Vuelos de la cotización: se pega la tabla copiada del portal y queda como datos; lo que no se puede copiar
 // (aerolínea y equipaje) se completa a mano. Todo se puede corregir después, vuelo por vuelo.
@@ -74,7 +74,7 @@ export function VuelosEditor({ flights, editable, onChange }: { flights: Flight[
                 {parsed.flights.map((f, i) => (
                   <li key={i} className="border-b border-[var(--border)] py-1">
                     <b>{f.flightNo || "s/n"}</b> · {f.fromCity} ({f.fromCode}) {f.departDate} {f.departTime} → {f.toCity} ({f.toCode}) {f.arriveDate} {f.arriveTime}
-                    <span className="text-[color:var(--muted)]"> · {f.duration}{f.cabin ? ` · ${f.cabin}` : ""}</span>
+                    <span className="text-[color:var(--muted)]"> · {f.duration}{f.cabin ? ` · ${f.cabin}` : ""}{equipajeTexto(f) ? ` · ${equipajeTexto(f)}` : ""}</span>
                   </li>
                 ))}
               </ul>
@@ -86,7 +86,7 @@ export function VuelosEditor({ flights, editable, onChange }: { flights: Flight[
                   <input className="crm-field" style={{ width: 180 }} list="aerolineas" placeholder="Ej: LATAM" value={airline} onChange={(e) => setAirline(e.target.value)} />
                 </label>
               </div>
-              <p className="mt-1 text-[12px] text-[color:var(--muted)]">El equipaje no se puede copiar: lo marcas después, vuelo por vuelo.</p>
+              <p className="mt-1 text-[12px] text-[color:var(--muted)]">Si el portal trae el equipaje escrito, el panel lo marca solo; si no, lo marcas después vuelo por vuelo. Revísalo siempre.</p>
             </div>
           )}
           <div className="mt-3 flex flex-wrap justify-end gap-2">

@@ -44,6 +44,44 @@ export function htmlTableToText(html: string): string | null {
     .join("\n");
 }
 
+const SURFACE = /^(SI|SÍ|NO)$/;
+
+/** Cola de la fila: [avión, (paradas), asientos, surface, clase…, texto de equipaje, «remover»].
+ *  - Paradas: si la columna viene en blanco (vuelo directo) quedan solo los asientos antes del «surface»: paradas = 0.
+ *  - El botón «remover» del portal se descarta.
+ *  - El equipaje, cuando el portal lo trae escrito («Incluye cartera de mano… No incluye equipaje para despachar»), se marca solo. */
+export function parseTail(rest: string[]) {
+  const baggage = { hand: false, cabin: false, hold: false };
+  let holdKg = "";
+  let stops = "";
+  let raw: string;
+  const sIdx = rest.findIndex((t, i) => i >= 1 && SURFACE.test(t));
+  if (sIdx >= 1) {
+    const nums = rest.slice(1, sIdx).filter((t) => /^\d+$/.test(t));
+    stops = nums.length >= 2 ? nums[0] : "0";
+    raw = rest.slice(sIdx + 1).join(" ");
+  } else {
+    stops = /^\d$/.test(rest[1] ?? "") ? rest[1] : "";
+    raw = rest.slice(4).join(" ");
+  }
+  raw = raw.replace(/\bremover\b/gi, " ").replace(/\s+/g, " ").trim();
+  const m = raw.search(/\b(?:No incluye|Incluye)\b/);
+  const cabin = (m >= 0 ? raw.slice(0, m) : raw).trim();
+  const bagText = m >= 0 ? raw.slice(m) : "";
+  for (const clause of bagText.split(/(?=\b(?:No incluye|Incluye)\b)/).map((c) => c.trim()).filter(Boolean)) {
+    const included = /^Incluye/.test(clause);
+    const low = clause.toLowerCase();
+    if (/mano|cartera|bolso/.test(low)) baggage.hand = included;
+    else if (/cabina/.test(low)) baggage.cabin = included;
+    else if (/despach|bodega|facturad|check/.test(low)) {
+      baggage.hold = included;
+      const kg = low.match(/(\d{1,3})\s?kg/);
+      if (included && kg) holdKg = `${kg[1]} kg`;
+    }
+  }
+  return { stops, cabin, baggage, holdKg };
+}
+
 export type ParseFlightsResult = { flights: Flight[]; warnings: string[] };
 
 /** `today` y `yearOverride` permiten fijar el año (la tabla trae «03 Ene» sin año). */
@@ -81,17 +119,16 @@ export function parseFlights(text: string, opts: { today?: Date; yearOverride?: 
 
     const dur = after.match(/(\d{1,2})\s*h\s*:?\s*(\d{1,2})?\s*m?/i);
     const duration = dur ? `${dur[1]}h ${dur[2] ?? "00"}m` : "";
-    // resto tras la duración: avión, paradas, asientos, surface, familia/clases
+    // resto tras la duración: avión, (paradas), asientos, surface, familia/clases, equipaje (texto)
     const rest = dur ? after.slice((dur.index ?? 0) + dur[0].length).trim().split(/[\t\n ]+/).filter(Boolean) : [];
-    const stops = rest[1] !== undefined && /^\d$/.test(rest[1]) ? rest[1] : "";
-    const cabin = rest.slice(4).join(" ").replace(/\s+/g, " ").trim();
+    const tail = parseTail(rest);
     flights.push({
       airline: "",
       flightNo,
       fromCity: dep[1].trim(), fromCode: dep[2], departDate: dm ? iso(dy, dm, +dep[3]) : "", departTime: time(dep[5]),
       toCity: arr[1].trim(), toCode: arr[2], arriveDate: am ? iso(ay, am, +arr[3]) : "", arriveTime: time(arr[5]),
-      duration, stops, cabin,
-      baggage: { hand: false, cabin: false, hold: false }, holdKg: "",
+      duration, stops: tail.stops, cabin: tail.cabin,
+      baggage: tail.baggage, holdKg: tail.holdKg,
     });
   }
   return { flights, warnings };
@@ -115,5 +152,6 @@ export function equipajeTexto(f: Flight): string {
   if (f.baggage.hand) out.push("Bolso de mano");
   if (f.baggage.cabin) out.push("Equipaje de cabina");
   if (f.baggage.hold) out.push(f.holdKg.trim() ? `Equipaje de bodega (${f.holdKg.trim()})` : "Equipaje de bodega");
+  else if (f.baggage.hand || f.baggage.cabin) out.push("Sin equipaje de bodega");
   return out.join(" · ");
 }
