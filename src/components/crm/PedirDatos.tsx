@@ -58,6 +58,10 @@ export function PedirDatos({ requestId, quote, onLogged }: { requestId: number; 
   const [picked, setPicked] = useState<string[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Ventana con el mensaje ya escrito: se lee, se edita y recién entonces se abre Gmail / el correo / WhatsApp, o se copia.
+  const [draft, setDraft] = useState<{ medium: "correo" | "whatsapp"; subject: string; body: string } | null>(null);
+  const [logged, setLogged] = useState(false);
+  const [copied, setCopied] = useState<"" | "mensaje" | "asunto">("");
 
   useEffect(() => {
     if (quote) setQ(quote);
@@ -74,21 +78,51 @@ export function PedirDatos({ requestId, quote, onLogged }: { requestId: number; 
   const sender = user?.name ?? "el equipo";
   const text = buildMessage(q, chosen, sender);
 
-  async function send(medium: "correo" | "whatsapp") {
+  function openPreview(medium: "correo" | "whatsapp") {
     if (!q || chosen.length === 0) return;
-    // Abrir primero (el navegador solo permite abrir ventanas dentro del clic) y registrar después.
-    if (medium === "correo") {
-      window.location.href = `mailto:${q.passengerEmail}?subject=${encodeURIComponent(text.subject)}&body=${encodeURIComponent(text.email)}`;
-    } else {
-      window.open(`https://wa.me/${phoneDigits}?text=${encodeURIComponent(text.wsp)}`, "_blank", "noopener,noreferrer");
-    }
+    setDraft({ medium, subject: text.subject, body: medium === "correo" ? text.email : text.wsp });
+    setLogged(false);
+    setCopied("");
+  }
+
+  // Registra el contacto (una sola vez por mensaje) cuando se elige una opción de la ventana.
+  async function registrar(medium: "correo" | "whatsapp") {
+    if (logged) return;
     setBusy(true);
     const res = await apiPost(`/api-quotes.php?action=contact&id=${requestId}`, { medium, asked: chosen.map((i) => i.label) });
     setBusy(false);
     if (!res.ok) return setMsg(`No se pudo registrar el contacto: ${res.error}`);
+    setLogged(true);
     setMsg("Listo: quedó registrado el contacto y qué se pidió. La alerta de seguimiento volvió a cero.");
     reload();
     onLogged?.();
+  }
+
+  async function copiar(texto: string, que: "mensaje" | "asunto") {
+    try {
+      await navigator.clipboard.writeText(texto);
+    } catch {
+      const t = document.createElement("textarea");
+      t.value = texto;
+      document.body.appendChild(t);
+      t.select();
+      document.execCommand("copy");
+      document.body.removeChild(t);
+    }
+    setCopied(que);
+  }
+
+  function abrir(via: "gmail" | "correo" | "whatsapp") {
+    if (!q || !draft) return;
+    // Abrir primero (el navegador solo permite abrir ventanas dentro del clic) y registrar después.
+    if (via === "gmail") {
+      window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(q.passengerEmail ?? "")}&su=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`, "_blank", "noopener,noreferrer");
+    } else if (via === "correo") {
+      window.location.href = `mailto:${q.passengerEmail}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`;
+    } else {
+      window.open(`https://wa.me/${phoneDigits}?text=${encodeURIComponent(draft.body)}`, "_blank", "noopener,noreferrer");
+    }
+    registrar(draft.medium);
   }
 
   return (
@@ -118,21 +152,67 @@ export function PedirDatos({ requestId, quote, onLogged }: { requestId: number; 
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {q.passengerEmail && (
-          <button type="button" className="crm-btn primary" disabled={busy || chosen.length === 0} onClick={() => send("correo")}>
+          <button type="button" className="crm-btn primary" disabled={busy || chosen.length === 0} onClick={() => openPreview("correo")}>
             <Mail size={15} /> Pedir por correo
           </button>
         )}
         {phoneDigits && (
-          <button type="button" className="crm-btn" disabled={busy || chosen.length === 0} onClick={() => send("whatsapp")}>
+          <button type="button" className="crm-btn" disabled={busy || chosen.length === 0} onClick={() => openPreview("whatsapp")}>
             <MessageCircle size={15} /> Pedir por WhatsApp
           </button>
         )}
         {!q.passengerEmail && !phoneDigits && <span className="text-[12.5px] text-[color:var(--muted)]">Este cliente no tiene correo ni teléfono registrado.</span>}
       </div>
       <p className="mt-2 text-[11.5px] text-[color:var(--muted)]">
-        Se abre tu correo (o WhatsApp) con el mensaje ya escrito para que lo revises y lo envíes. Al abrirlo, la app registra el contacto sola.
+        Se abre una ventana con el mensaje ya escrito para que lo leas, lo edites si quieres y lo envíes (en Gmail, en tu programa de correo o copiándolo). Al elegir una opción, la app registra el contacto sola.
       </p>
       {msg && <p className="mt-2 text-[12.5px] font-semibold text-[color:var(--ok)]">{msg}</p>}
+      {draft && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Mensaje para el cliente" onClick={() => setDraft(null)}>
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold">{draft.medium === "correo" ? "Correo" : "WhatsApp"} para {q.passengerName}</h2>
+                <p className="text-[12.5px] text-[color:var(--muted)]">
+                  {draft.medium === "correo" ? `Para: ${q.passengerEmail}` : `Teléfono: +${phoneDigits}`} · Léelo, edítalo si quieres y elige cómo enviarlo.
+                </p>
+              </div>
+              <button type="button" className="crm-btn" onClick={() => setDraft(null)} aria-label="Cerrar">{logged ? "Cerrar" : "Cancelar"} ✕</button>
+            </div>
+
+            {draft.medium === "correo" && (
+              <div className="mt-3">
+                <label className="block text-[12.5px] font-semibold">Asunto</label>
+                <div className="flex gap-2">
+                  <input className="crm-field block w-full" value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} />
+                  <button type="button" className="crm-btn" onClick={() => copiar(draft.subject, "asunto")}>{copied === "asunto" ? "✔ Copiado" : "Copiar"}</button>
+                </div>
+              </div>
+            )}
+            <label className="mt-3 block text-[12.5px] font-semibold">Mensaje</label>
+            <textarea className="crm-field block w-full" rows={13} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {draft.medium === "correo" ? (
+                <>
+                  <button type="button" className="crm-btn primary" disabled={busy} onClick={() => abrir("gmail")}><Mail size={15} /> Abrir en Gmail</button>
+                  <button type="button" className="crm-btn" disabled={busy} onClick={() => abrir("correo")}>Abrir en mi programa de correo</button>
+                </>
+              ) : (
+                <button type="button" className="crm-btn primary" disabled={busy} onClick={() => abrir("whatsapp")}><MessageCircle size={15} /> Abrir WhatsApp</button>
+              )}
+              <button type="button" className="crm-btn" disabled={busy} onClick={async () => { await copiar(draft.body, "mensaje"); registrar(draft.medium); }}>
+                {copied === "mensaje" ? "✔ Mensaje copiado" : "Copiar mensaje"}
+              </button>
+            </div>
+            <p className="mt-2 text-[12px] text-[color:var(--muted)]">
+              {logged
+                ? "✔ Contacto registrado. Recuerda enviar el mensaje: el panel no lo envía por ti."
+                : "Al elegir una opción, el panel registra el contacto y anota qué datos se pidieron. El mensaje solo sale cuando tú lo envías."}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
